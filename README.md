@@ -1,50 +1,239 @@
-# Welcome to your Expo app 👋
+# PulseGuard Mobile Kiosk App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Een React Native Expo app die fungeert als een kiosk browser voor PulseGuard domain monitoring, met real-time push notificaties.
 
-## Get started
+## Features
 
-1. Install dependencies
+- 🖥️ **Kiosk Mode**: Full-screen browser interface voor `app.pulseguard.nl`
+- 📱 **Push Notifications**: Real-time meldingen voor domain status changes
+- 🔄 **Auto-sync**: Automatische synchronisatie met Laravel backend
+- 🌓 **Dark/Light Mode**: Ondersteunt systeem theme preferences
+- 🔒 **Secure**: Geïntegreerd met Laravel Sanctum authenticatie
 
+## Notification Types
+
+De app ontvangt push notificaties voor:
+
+- 🔴 **Domain Down**: Wanneer een domain offline gaat
+- ✅ **Domain Up**: Wanneer een domain weer online komt
+- ⚠️ **High Ping**: Bij hoge response times
+- 🔒 **SSL Expiration**: SSL certificaat verloopt binnenkort
+
+## Setup & Installation
+
+### Vereisten
+
+- Node.js 18 of hoger
+- Expo CLI: `npm install -g expo-cli`
+- EAS CLI: `npm install -g @expo/eas-cli`
+
+### Development Setup
+
+1. **Installeer dependencies:**
    ```bash
+   cd PulseGuardApp
    npm install
    ```
 
-2. Start the app
-
+2. **Start development server:**
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. **Test op device:**
+   - Scan QR code met Expo Go app
+   - Of gebruik Android/iOS simulator
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Production Build
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+1. **Login naar Expo:**
+   ```bash
+   eas login
+   ```
 
-## Get a fresh project
+2. **Build voor Android:**
+   ```bash
+   eas build --platform android --profile production
+   ```
 
-When you're ready, run:
+3. **Build voor iOS:**
+   ```bash
+   eas build --platform ios --profile production
+   ```
 
-```bash
-npm run reset-project
+## Configuratie
+
+### Project ID Setup
+
+In `app.json`, update de project ID:
+```json
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "your-actual-project-id"
+      }
+    }
+  }
+}
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Laravel Backend Setup
 
-## Learn more
+Zorg ervoor dat je Laravel app de volgende heeft:
 
-To learn more about developing your project with Expo, look at the following resources:
+1. **API Routes** (`routes/api.php`):
+   ```php
+   Route::middleware('auth:sanctum')->group(function () {
+       Route::post('/expo-push-token', [ExpoPushTokenController::class, 'register']);
+       Route::delete('/expo-push-token', [ExpoPushTokenController::class, 'unregister']);
+   });
+   ```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+2. **Database Migration**:
+   ```bash
+   php artisan migrate
+   ```
 
-## Join the community
+3. **Event Listeners** geconfigureerd voor Expo notifications
 
-Join our community of developers creating universal apps.
+## Kiosk Mode Features
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### WebView Security
+- Beperkt navigatie tot PulseGuard domein
+- Blokkeert externe links
+- Ondersteunt authentication flows
+
+### Keep Awake
+- Houdt scherm actief tijdens gebruik
+- Ideal voor monitoring displays
+
+### Hardware Back Button
+- Android back button support
+- WebView navigatie geschiedenis
+
+## Push Notification Implementation
+
+### Token Registration
+```javascript
+// Automatisch geregistreerd bij app start
+const token = await Notifications.getExpoPushTokenAsync();
+await registerTokenWithServer(token);
+```
+
+### Notification Handling
+```javascript
+// Luistert naar notificaties
+Notifications.addNotificationReceivedListener(notification => {
+  // Handle foreground notifications
+});
+
+Notifications.addNotificationResponseReceivedListener(response => {
+  // Handle notification taps
+});
+```
+
+## Development
+
+### File Structure
+```
+PulseGuardApp/
+├── app/
+│   ├── (tabs)/
+│   │   ├── index.tsx          # Main kiosk WebView
+│   │   └── _layout.tsx        # Tab layout (no tabs)
+│   └── _layout.tsx            # Root layout
+├── hooks/
+│   └── useNotifications.tsx   # Notification logic
+├── assets/
+│   └── images/               # App icons & images
+└── app.json                  # Expo configuration
+```
+
+### Key Components
+
+1. **KioskScreen** (`app/(tabs)/index.tsx`):
+   - Full-screen WebView
+   - JavaScript injection voor token sharing
+   - Error handling & retry logic
+
+2. **NotificationProvider** (`hooks/useNotifications.tsx`):
+   - Token registration
+   - Permission handling
+   - Notification channels
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Notifications niet werkend:**
+   - Check device permissions
+   - Verify project ID in app.json
+   - Test met fysiek device (niet simulator)
+
+2. **WebView laden mislukt:**
+   - Check internet connection
+   - Verify PulseGuard server is reachable
+   - Check console logs
+
+3. **Authentication problemen:**
+   - Clear WebView cache
+   - Re-login in browser
+   - Check CORS settings in Laravel
+
+### Debug Commands
+
+```bash
+# View logs
+npx expo start --dev-client
+
+# Clear cache
+npx expo start --clear
+
+# View device logs
+npx expo install --fix
+```
+
+## Deployment
+
+### Android APK
+```bash
+eas build --platform android --profile preview
+```
+
+### Play Store
+```bash
+eas build --platform android --profile production
+eas submit --platform android
+```
+
+### App Store
+```bash
+eas build --platform ios --profile production
+eas submit --platform ios
+```
+
+## Monitoring & Analytics
+
+- Expo Analytics geïntegreerd
+- Error tracking via Expo
+- Push notification delivery stats
+- WebView performance monitoring
+
+## Security
+
+- HTTPS enforced voor alle requests
+- Token encryption in transit
+- Secure storage voor device tokens
+- Domain whitelisting in WebView
+
+## Support
+
+Voor vragen over de app:
+- Check logs in Expo dashboard
+- Review Laravel logs voor API issues
+- Test notification delivery in Laravel admin panel
+
+## Version History
+
+- **v1.0.0**: Initial kiosk implementation met push notifications

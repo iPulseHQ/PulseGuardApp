@@ -116,12 +116,22 @@ export default function KioskScreen() {
       
       // Notify the web app that it's running in kiosk mode
       window.isKioskMode = true;
-      window.expoPushToken = '${expoPushToken || ''}'
+      window.expoPushToken = '${expoPushToken || ''}';
       
       // Dispatch a custom event to let the web app know the token is available
       window.dispatchEvent(new CustomEvent('expo-token-ready', {
         detail: { token: '${expoPushToken || ''}' }
       }));
+      
+      // Add message handler for web app communication
+      window.addEventListener('message', function(event) {
+        if (event.data.type === 'expo-notification-test') {
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'notification-test',
+            message: event.data.message || 'Test from WebView'
+          }));
+        }
+      });
       
       true; // Required for injected JavaScript
     })();

@@ -9,13 +9,19 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pulseguard.app",
+      "buildNumber": "1.0.0",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/android-chrome-192x192.png",
+        "backgroundColor": "#3b82f6"
       },
+      "package": "com.pulseguard.app",
       "edgeToEdgeEnabled": true,
       "permissions": [
         "WAKE_LOCK",
@@ -27,7 +33,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon-32x32.png"
     },
     "plugins": [
       "expo-router",
@@ -43,11 +49,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/notification-icon.png",
-          "color": "#3b82f6",
-          "sounds": [
-            "./assets/sounds/notification.wav"
-          ]
+          "icon": "./assets/images/android-chrome-192x192.png",
+          "color": "#3b82f6"
         }
       ]
     ],
