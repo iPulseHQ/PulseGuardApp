@@ -11,9 +11,11 @@ const PULSEGUARD_URL = 'https://app.pulseguard.nl';
 export default function KioskScreen() {
   const webViewRef = useRef<WebView>(null);
   const insets = useSafeAreaInsets();
-  const { expoPushToken } = useNotifications();
+  const { expoPushToken, sendTokenToWebView } = useNotifications();
   const [canGoBack, setCanGoBack] = useState(false);
   const [currentUrl, setCurrentUrl] = useState(PULSEGUARD_URL);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [tokenSent, setTokenSent] = useState(false);
 
   // Keep screen awake in kiosk mode
   useEffect(() => {
@@ -37,9 +39,29 @@ export default function KioskScreen() {
     return () => backHandler.remove();
   }, [canGoBack]);
 
+  // Send token when both token and authentication are ready
+  useEffect(() => {
+    if (expoPushToken && isAuthenticated && !tokenSent && webViewRef.current) {
+      console.log('Sending token to authenticated WebView...');
+      sendTokenToWebView(webViewRef, expoPushToken);
+      setTokenSent(true);
+    }
+  }, [expoPushToken, isAuthenticated, tokenSent, sendTokenToWebView]);
+
   const handleNavigationStateChange = (navState: any) => {
     setCanGoBack(navState.canGoBack);
     setCurrentUrl(navState.url);
+    
+    // Check if we're on the main app (not Clerk login)
+    const isOnMainApp = navState.url.includes('app.pulseguard.nl') && 
+                       !navState.url.includes('clerk') && 
+                       !navState.url.includes('sign-in') && 
+                       !navState.url.includes('sign-up');
+    
+    if (isOnMainApp && !isAuthenticated) {
+      console.log('User appears to be authenticated and on main app');
+      setIsAuthenticated(true);
+    }
   };
 
   const handleError = (syntheticEvent: any) => {
@@ -64,11 +86,6 @@ export default function KioskScreen() {
 
   const injectedJavaScript = `
     (function() {
-      // Inject the Expo push token into the web app
-      if (window.localStorage) {
-        window.localStorage.setItem('expo_push_token', '${expoPushToken || ''}');
-      }
-      
       // Add custom styling for kiosk mode
       const style = document.createElement('style');
       style.textContent = \`
@@ -116,16 +133,50 @@ export default function KioskScreen() {
       
       // Notify the web app that it's running in kiosk mode
       window.isKioskMode = true;
-      window.expoPushToken = '${expoPushToken || ''}';
       
-      // Dispatch a custom event to let the web app know the token is available
-      window.dispatchEvent(new CustomEvent('expo-token-ready', {
-        detail: { token: '${expoPushToken || ''}' }
-      }));
-      
-      // Add message handler for web app communication
+      // Listen for push token messages from React Native
       window.addEventListener('message', function(event) {
-        if (event.data.type === 'expo-notification-test') {
+        if (event.data && event.data.type === 'expo-push-token') {
+          console.log('Received push token from native app:', event.data.data);
+          
+          // Register the token with the Laravel backend using authenticated session
+          fetch('/api/expo-push-token', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+              // Get CSRF token from meta tag if available
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            credentials: 'same-origin', // Include cookies for session auth
+            body: JSON.stringify(event.data.data)
+          })
+          .then(response => {
+            if (response.ok) {
+              console.log('Push token registered successfully');
+              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'token-registration-success',
+                message: 'Push token registered successfully'
+              }));
+            } else {
+              console.error('Failed to register push token:', response.status, response.statusText);
+              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'token-registration-error',
+                message: 'Failed to register push token: ' + response.status
+              }));
+            }
+          })
+          .catch(error => {
+            console.error('Error registering push token:', error);
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'token-registration-error',
+              message: 'Network error: ' + error.message
+            }));
+          });
+        }
+        
+        if (event.data && event.data.type === 'expo-notification-test') {
           window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'notification-test',
             message: event.data.message || 'Test from WebView'
@@ -175,9 +226,13 @@ export default function KioskScreen() {
             const data = JSON.parse(event.nativeEvent.data);
             console.log('Message from WebView:', data);
             
-            // You can handle specific messages from the web app here
+            // Handle different message types
             if (data.type === 'notification-test') {
               Alert.alert('Test Notification', data.message);
+            } else if (data.type === 'token-registration-success') {
+              console.log('✅ Push token registered successfully');
+            } else if (data.type === 'token-registration-error') {
+              console.error('❌ Push token registration failed:', data.message);
             }
           } catch (error) {
             console.log('Raw message from WebView:', event.nativeEvent.data);
@@ -185,6 +240,9 @@ export default function KioskScreen() {
         }}
         onLoadStart={() => {
           console.log('Loading PulseGuard...');
+          // Reset authentication state when starting a new load
+          setIsAuthenticated(false);
+          setTokenSent(false);
         }}
         onLoadEnd={() => {
           console.log('PulseGuard loaded successfully');

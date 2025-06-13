@@ -1,4 +1,3 @@
-import axios from 'axios';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
@@ -9,7 +8,7 @@ interface NotificationContextType {
   expoPushToken: string | null;
   notification: Notifications.Notification | null;
   registerForPushNotifications: () => Promise<string | null>;
-  sendTokenToServer: (token: string) => Promise<void>;
+  sendTokenToWebView: (webViewRef: any, token: string) => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -29,8 +28,8 @@ interface NotificationProviderProps {
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   const registerForPushNotifications = async (): Promise<string | null> => {
     let token = null;
@@ -41,7 +40,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#3b82f6',
-        sound: true,
+        sound: 'default',
         enableVibrate: true,
         showBadge: true,
         enableLights: true,
@@ -53,7 +52,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250, 250, 250],
         lightColor: '#ef4444',
-        sound: true,
+        sound: 'default',
         enableVibrate: true,
         showBadge: true,
         enableLights: true,
@@ -90,31 +89,39 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         token = null;
       }
     } else {
-      alert('Must use physical device for Push Notifications');
+      console.log('Must use physical device for Push Notifications');
     }
 
     return token;
   };
 
-  const sendTokenToServer = async (token: string): Promise<void> => {
+  const sendTokenToWebView = (webViewRef: any, token: string): void => {
+    if (!webViewRef?.current) {
+      console.error('WebView ref not available');
+      return;
+    }
+
     try {
-      // Send the token to your Laravel API
-      await axios.post('https://app.pulseguard.nl/api/expo-push-token', {
+      const deviceInfo = {
         token: token,
         device_name: Device.deviceName || 'Unknown Device',
         device_type: Platform.OS,
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        timeout: 10000,
-      });
-      
-      console.log('Token successfully sent to server');
+        app_version: Constants.expoConfig?.version || '1.0.0'
+      };
+
+      // Send the token to the WebView via postMessage
+      const script = `
+        window.postMessage({
+          type: 'expo-push-token',
+          data: ${JSON.stringify(deviceInfo)}
+        }, '*');
+        true; // note: this is required, or you'll sometimes get silent failures
+      `;
+
+      webViewRef.current.injectJavaScript(script);
+      console.log('Token sent to WebView for registration');
     } catch (error) {
-      console.error('Error sending token to server:', error);
-      // Don't throw error - app should continue working even if token registration fails
+      console.error('Error sending token to WebView:', error);
     }
   };
 
@@ -123,7 +130,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     registerForPushNotifications().then(token => {
       if (token) {
         setExpoPushToken(token);
-        sendTokenToServer(token);
+        // Note: We don't send to server here anymore - will be handled by WebView
+        console.log('Push token ready:', token);
       }
     });
 
@@ -159,7 +167,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     expoPushToken,
     notification,
     registerForPushNotifications,
-    sendTokenToServer,
+    sendTokenToWebView,
   };
 
   return (
