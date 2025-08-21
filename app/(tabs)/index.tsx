@@ -86,7 +86,7 @@ export default function KioskScreen() {
 
   const injectedJavaScript = `
     (function() {
-      // Add custom styling for kiosk mode
+      // Add custom styling for kiosk mode with scroll performance optimizations
       const style = document.createElement('style');
       style.textContent = \`
         /* Hide browser-specific UI elements */
@@ -98,17 +98,45 @@ export default function KioskScreen() {
           -ms-user-select: none;
           user-select: none;
           overflow-x: hidden;
+          /* Performance optimizations for scrolling */
+          -webkit-overflow-scrolling: touch;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
+          -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
+          -webkit-perspective: 1000;
+          perspective: 1000;
+        }
+        
+        /* Enhanced scroll performance for all elements */
+        * {
+          -webkit-tap-highlight-color: transparent;
+          -webkit-overflow-scrolling: touch;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
+          -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
+        }
+        
+        /* Optimize scrollable containers */
+        .scrollable, 
+        [style*="overflow"], 
+        [class*="scroll"],
+        .table-responsive,
+        .overflow-auto,
+        .overflow-y-auto {
+          -webkit-overflow-scrolling: touch;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
+          will-change: scroll-position;
         }
         
         /* Enhance touch targets for mobile */
         button, a, .clickable {
           min-height: 44px;
           min-width: 44px;
-        }
-        
-        /* Disable text selection */
-        * {
-          -webkit-tap-highlight-color: transparent;
+          -webkit-transform: translateZ(0);
+          transform: translateZ(0);
         }
         
         /* Custom scrollbar for better touch experience */
@@ -128,8 +156,60 @@ export default function KioskScreen() {
         ::-webkit-scrollbar-thumb:hover {
           background: #a8a8a8;
         }
+        
+        /* Optimize animations and transitions */
+        * {
+          -webkit-animation-duration: 0.1s;
+          animation-duration: 0.1s;
+          -webkit-transition-duration: 0.1s;
+          transition-duration: 0.1s;
+        }
+        
+        /* Reduce motion for better performance */
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            -webkit-animation-duration: 0.01ms !important;
+            animation-duration: 0.01ms !important;
+            -webkit-animation-iteration-count: 1 !important;
+            animation-iteration-count: 1 !important;
+            -webkit-transition-duration: 0.01ms !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
       \`;
       document.head.appendChild(style);
+      
+      // Optimize scroll performance with requestAnimationFrame
+      let ticking = false;
+      function optimizeScrollPerformance() {
+        const scrollableElements = document.querySelectorAll('[style*="overflow"], .scrollable, .table-responsive, .overflow-auto, .overflow-y-auto');
+        scrollableElements.forEach(el => {
+          el.style.webkitOverflowScrolling = 'touch';
+          el.style.transform = 'translateZ(0)';
+          el.style.willChange = 'scroll-position';
+        });
+        
+        // Add momentum scrolling to body if not already present
+        if (!document.body.style.webkitOverflowScrolling) {
+          document.body.style.webkitOverflowScrolling = 'touch';
+        }
+      }
+      
+      // Run optimization immediately and on DOM changes
+      optimizeScrollPerformance();
+      
+      // Use MutationObserver to optimize new elements
+      const observer = new MutationObserver(() => {
+        if (!ticking) {
+          requestAnimationFrame(() => {
+            optimizeScrollPerformance();
+            ticking = false;
+          });
+          ticking = true;
+        }
+      });
+      
+      observer.observe(document.body, { childList: true, subtree: true });
       
       // Notify the web app that it's running in kiosk mode
       window.isKioskMode = true;
@@ -205,7 +285,7 @@ export default function KioskScreen() {
         javaScriptEnabled={true}
         domStorageEnabled={true}
         startInLoadingState={true}
-        scalesPageToFit={true}
+        scalesPageToFit={false}
         allowsBackForwardNavigationGestures={true}
         allowsLinkPreview={false}
         allowsInlineMediaPlayback={true}
@@ -220,6 +300,23 @@ export default function KioskScreen() {
         overScrollMode="never"
         nestedScrollEnabled={true}
         contentInsetAdjustmentBehavior="automatic"
+        // Performance optimizations for scrolling
+        renderingOptimizationEnabled={true}
+        directEventTypes={['onScroll']}
+        nativeConfig={{
+          props: {
+            webkitAllowsAirPlayForMediaPlayback: false,
+            webkitBounces: false,
+            webkitScrollEnabled: true,
+            webkitKeyboardDisplayRequiresUserAction: false,
+            webkitAllowsInlineMediaPlayback: true,
+          }
+        }}
+        // Android specific optimizations
+        androidLayerType="hardware"
+        androidHardwareAccelerationDisabled={false}
+        cacheMode="LOAD_DEFAULT"
+        textZoom={100}
         onMessage={(event) => {
           // Handle messages from the web app
           try {

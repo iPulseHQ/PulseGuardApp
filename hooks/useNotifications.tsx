@@ -9,6 +9,8 @@ interface NotificationContextType {
   notification: Notifications.Notification | null;
   registerForPushNotifications: () => Promise<string | null>;
   sendTokenToWebView: (webViewRef: any, token: string) => void;
+  isExpoGo: boolean;
+  notificationsSupported: boolean;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -31,35 +33,46 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
+  // Check if we're running in Expo Go
+  const isExpoGo = Constants.executionEnvironment === 'storeClient';
+  
+  // Check if notifications are supported (not in Expo Go for SDK 53+)
+  const notificationsSupported = !isExpoGo && Device.isDevice;
+
   const registerForPushNotifications = async (): Promise<string | null> => {
-    let token = null;
-
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'PulseGuard Alerts',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#3b82f6',
-        sound: 'default',
-        enableVibrate: true,
-        showBadge: true,
-        enableLights: true,
-      });
-
-      // Create critical alerts channel for high priority notifications
-      await Notifications.setNotificationChannelAsync('critical', {
-        name: 'Critical Domain Alerts',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250, 250, 250],
-        lightColor: '#ef4444',
-        sound: 'default',
-        enableVibrate: true,
-        showBadge: true,
-        enableLights: true,
-      });
+    if (!notificationsSupported) {
+      console.log('Push notifications not supported in current environment (Expo Go SDK 53+)');
+      return null;
     }
 
-    if (Device.isDevice) {
+    let token = null;
+
+    try {
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'PulseGuard Alerts',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#3b82f6',
+          sound: 'default',
+          enableVibrate: true,
+          showBadge: true,
+          enableLights: true,
+        });
+
+        // Create critical alerts channel for high priority notifications
+        await Notifications.setNotificationChannelAsync('critical', {
+          name: 'Critical Domain Alerts',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250, 250, 250],
+          lightColor: '#ef4444',
+          sound: 'default',
+          enableVibrate: true,
+          showBadge: true,
+          enableLights: true,
+        });
+      }
+
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       
@@ -69,27 +82,26 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
       
       if (finalStatus !== 'granted') {
-        alert('Push notification permissions are required for domain monitoring alerts!');
+        console.log('Push notification permissions not granted');
         return null;
       }
       
-      try {
-        const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-        if (!projectId) {
-          throw new Error('Project ID not found');
-        }
-        
-        token = (await Notifications.getExpoPushTokenAsync({
-          projectId,
-        })).data;
-        
-        console.log('Expo Push Token:', token);
-      } catch (error) {
-        console.error('Error getting push token:', error);
-        token = null;
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+      if (!projectId) {
+        throw new Error('Project ID not found');
       }
-    } else {
-      console.log('Must use physical device for Push Notifications');
+      
+      token = (await Notifications.getExpoPushTokenAsync({
+        projectId,
+      })).data;
+      
+      console.log('Expo Push Token:', token);
+    } catch (error) {
+      console.error('Error getting push token:', error);
+      if (error instanceof Error && error.message?.includes('removed from Expo Go')) {
+        console.log('Push notifications require a development build (not Expo Go)');
+      }
+      token = null;
     }
 
     return token;
@@ -106,7 +118,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         token: token,
         device_name: Device.deviceName || 'Unknown Device',
         device_type: Platform.OS,
-        app_version: Constants.expoConfig?.version || '1.0.0'
+        app_version: Constants.expoConfig?.version || '1.0.0',
+        is_expo_go: isExpoGo,
+        notifications_supported: notificationsSupported
       };
 
       // Send the token to the WebView via postMessage
@@ -119,19 +133,26 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       `;
 
       webViewRef.current.injectJavaScript(script);
-      console.log('Token sent to WebView for registration');
+      console.log('Device info sent to WebView for registration');
     } catch (error) {
       console.error('Error sending token to WebView:', error);
     }
   };
 
   useEffect(() => {
+    if (!notificationsSupported) {
+      console.log('⚠️  Running in Expo Go - Push notifications not available');
+      console.log('📱 For push notifications, create a development build with: npx expo run:android or npx expo run:ios');
+      return;
+    }
+
     // Register for push notifications on app start
     registerForPushNotifications().then(token => {
       if (token) {
         setExpoPushToken(token);
-        // Note: We don't send to server here anymore - will be handled by WebView
         console.log('Push token ready:', token);
+      } else {
+        console.log('Failed to register for push notifications');
       }
     });
 
@@ -161,13 +182,15 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         Notifications.removeNotificationSubscription(responseListener.current);
       }
     };
-  }, []);
+  }, [notificationsSupported]);
 
   const value: NotificationContextType = {
     expoPushToken,
     notification,
     registerForPushNotifications,
     sendTokenToWebView,
+    isExpoGo,
+    notificationsSupported,
   };
 
   return (
