@@ -12,13 +12,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.pulseguard.app",
       "buildNumber": "1.0.0",
+      "icon": "./assets/images/icon.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-chrome-192x192.png",
+        "foregroundImage": "./assets/images/android-chrome-512x512.png",
         "backgroundColor": "#3b82f6"
       },
       "package": "com.pulseguard.app",

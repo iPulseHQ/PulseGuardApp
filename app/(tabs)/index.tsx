@@ -1,12 +1,12 @@
 import * as KeepAwake from 'expo-keep-awake';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, BackHandler, StyleSheet, View } from 'react-native';
+import { Alert, BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useNotifications } from '../../hooks/useNotifications';
 
-const PULSEGUARD_URL = 'https://app.pulseguard.nl';
+const PULSEGUARD_URL = 'https://app.pulseguard.pro';
 
 export default function KioskScreen() {
   const webViewRef = useRef<WebView>(null);
@@ -16,14 +16,25 @@ export default function KioskScreen() {
   const [currentUrl, setCurrentUrl] = useState(PULSEGUARD_URL);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tokenSent, setTokenSent] = useState(false);
+  const isWeb = Platform.OS === 'web';
 
-  // Keep screen awake in kiosk mode
+  // Keep screen awake in kiosk mode (native only)
   useEffect(() => {
+    if (isWeb) return;
     KeepAwake.activateKeepAwake();
     return () => {
       KeepAwake.deactivateKeepAwake();
     };
-  }, []);
+  }, [isWeb]);
+
+  // On web, redirect to the web app directly instead of rendering WebView
+  useEffect(() => {
+    if (!isWeb) return;
+    try {
+      // Use assign to keep history entry
+      window.location.assign(PULSEGUARD_URL);
+    } catch {}
+  }, [isWeb]);
 
   // Handle Android back button
   useEffect(() => {
@@ -53,7 +64,7 @@ export default function KioskScreen() {
     setCurrentUrl(navState.url);
     
     // Check if we're on the main app (not Clerk login)
-    const isOnMainApp = navState.url.includes('app.pulseguard.nl') && 
+    const isOnMainApp = (navState.url.includes('app.pulseguard.pro') || navState.url.includes('app.pulseguard.nl')) && 
                        !navState.url.includes('clerk') && 
                        !navState.url.includes('sign-in') && 
                        !navState.url.includes('sign-up');
@@ -270,6 +281,18 @@ export default function KioskScreen() {
 
   const userAgent = 'PulseGuardKiosk/1.0 (Mobile App)';
 
+  // Web fallback UI while redirecting
+  if (isWeb) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}> 
+        <StatusBar style="auto" backgroundColor="#3b82f6" />
+        <View style={styles.webFallback}> 
+          <Text style={styles.webFallbackText}>Doorsturen naar PulseGuard…</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="auto" backgroundColor="#3b82f6" />
@@ -300,9 +323,7 @@ export default function KioskScreen() {
         overScrollMode="never"
         nestedScrollEnabled={true}
         contentInsetAdjustmentBehavior="automatic"
-        // Performance optimizations for scrolling
-        renderingOptimizationEnabled={true}
-        directEventTypes={['onScroll']}
+        // Performance-related props kept within supported API
         nativeConfig={{
           props: {
             webkitAllowsAirPlayForMediaPlayback: false,
@@ -314,7 +335,6 @@ export default function KioskScreen() {
         }}
         // Android specific optimizations
         androidLayerType="hardware"
-        androidHardwareAccelerationDisabled={false}
         cacheMode="LOAD_DEFAULT"
         textZoom={100}
         onMessage={(event) => {
@@ -348,8 +368,8 @@ export default function KioskScreen() {
           // Allow navigation within the PulseGuard domain
           const url = request.url.toLowerCase();
           
-          // Allow PulseGuard URLs
-          if (url.includes('pulseguard.nl') || url.includes('localhost')) {
+          // Allow PulseGuard URLs (both .pro and legacy .nl)
+          if (url.includes('pulseguard.pro') || url.includes('pulseguard.nl') || url.includes('localhost')) {
             return true;
           }
           
@@ -375,5 +395,15 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  webFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  webFallbackText: {
+    color: '#111827',
+    fontSize: 16,
   },
 });
