@@ -3,7 +3,9 @@
     "allow": [
       "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)",
       "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)",
-      "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)"
+      "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss:*)"
     ],
     "deny": [],
     "ask": [],
