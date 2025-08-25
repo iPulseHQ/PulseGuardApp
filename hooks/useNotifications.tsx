@@ -120,7 +120,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         device_type: Platform.OS,
         app_version: Constants.expoConfig?.version || '1.0.0',
         is_expo_go: isExpoGo,
-        notifications_supported: notificationsSupported
+        notifications_supported: notificationsSupported,
+        app_name: 'PulseGuard',
+        app_mode: 'kiosk'
       };
 
       // Send the token to the WebView via postMessage
@@ -129,11 +131,23 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           type: 'expo-push-token',
           data: ${JSON.stringify(deviceInfo)}
         }, '*');
+        
+        // Also notify the web app about enhanced notification capabilities
+        window.postMessage({
+          type: 'app-capabilities',
+          data: {
+            enhanced_notifications: true,
+            incident_notifications: true,
+            device_type: '${Platform.OS}',
+            supports_critical_alerts: true
+          }
+        }, '*');
+        
         true; // note: this is required, or you'll sometimes get silent failures
       `;
 
       webViewRef.current.injectJavaScript(script);
-      console.log('Device info sent to WebView for registration');
+      console.log('Enhanced device info sent to WebView for registration');
     } catch (error) {
       console.error('Error sending token to WebView:', error);
     }

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)",
+      "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)",
+      "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard"
+    ]
+  }
+}
