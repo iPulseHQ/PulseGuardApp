@@ -27,6 +27,10 @@
         "WAKE_LOCK",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
         "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
@@ -52,7 +56,9 @@
           "icon": "./assets/images/android-chrome-192x192.png",
           "color": "#3b82f6"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -63,6 +69,12 @@
         "projectId": "e74f7f26-6984-4bd3-9170-a1bf28f4cfa3"
       }
     },
-    "owner": "pulseguard"
+    "owner": "pulseguard",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e74f7f26-6984-4bd3-9170-a1bf28f4cfa3"
+    }
   }
 }
