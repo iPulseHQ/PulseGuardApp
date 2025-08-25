@@ -1,7 +1,7 @@
 import * as KeepAwake from 'expo-keep-awake';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, BackHandler, Platform, StyleSheet, Text, View, TouchableOpacity, Dimensions, Animated, ScrollView, Pressable } from 'react-native';
+import { Alert, BackHandler, Platform, StyleSheet, Text, View, TouchableOpacity, Dimensions, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -13,7 +13,6 @@ const FILES_URL = 'https://files.pulseguard.pro/';
 type AppMode = 'main' | 'files';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const SIDEBAR_WIDTH = 280;
 const CONTENT_MAX_WIDTH = 1200; // Maximum width for content
 
 export default function KioskScreen() {
@@ -26,49 +25,13 @@ export default function KioskScreen() {
   const [tokenSent, setTokenSent] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>('main');
   const [isLoading, setIsLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
-  const overlayAnim = useRef(new Animated.Value(0)).current;
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const isWeb = Platform.OS === 'web';
 
-  // Sidebar animation
-  const toggleSidebar = () => {
-    const toValue = sidebarOpen ? -SIDEBAR_WIDTH : 0;
-    const overlayValue = sidebarOpen ? 0 : 0.5;
-    
-    Animated.parallel([
-      Animated.timing(sidebarAnim, {
-        toValue,
-        duration: 300,
-        useNativeDriver: false,
-      }),
-      Animated.timing(overlayAnim, {
-        toValue: overlayValue,
-        duration: 300,
-        useNativeDriver: false,
-      }),
-    ]).start();
-    
-    setSidebarOpen(!sidebarOpen);
+  // Toggle settings modal
+  const toggleSettingsModal = () => {
+    setSettingsModalOpen(!settingsModalOpen);
   };
-
-  // File navigation items
-  const fileNavItems = [
-    { id: 'documents', name: 'Documenten', icon: 'document-text-outline' },
-    { id: 'images', name: 'Afbeeldingen', icon: 'image-outline' },
-    { id: 'videos', name: 'Video\'s', icon: 'videocam-outline' },
-    { id: 'downloads', name: 'Downloads', icon: 'download-outline' },
-    { id: 'recent', name: 'Recent', icon: 'time-outline' },
-  ];
-
-  // PulseGuard navigation items
-  const pulseGuardNavItems = [
-    { id: 'dashboard', name: 'Dashboard', icon: 'grid-outline' },
-    { id: 'monitoring', name: 'Monitoring', icon: 'pulse-outline' },
-    { id: 'alerts', name: 'Waarschuwingen', icon: 'alert-circle-outline' },
-    { id: 'reports', name: 'Rapporten', icon: 'bar-chart-outline' },
-    { id: 'settings', name: 'Instellingen', icon: 'settings-outline' },
-  ];
 
   // Keep screen awake in kiosk mode (native only)
   useEffect(() => {
@@ -92,8 +55,8 @@ export default function KioskScreen() {
   // Handle Android back button
   useEffect(() => {
     const backAction = () => {
-      if (sidebarOpen) {
-        toggleSidebar();
+      if (settingsModalOpen) {
+        setSettingsModalOpen(false);
         return true;
       }
       if (canGoBack && webViewRef.current) {
@@ -105,7 +68,7 @@ export default function KioskScreen() {
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
-  }, [canGoBack, sidebarOpen]);
+  }, [canGoBack, settingsModalOpen]);
 
   // Send token when both token and authentication are ready
   useEffect(() => {
@@ -139,21 +102,7 @@ export default function KioskScreen() {
     setIsLoading(true);
     setIsAuthenticated(false);
     setTokenSent(false);
-    setSidebarOpen(false); // Close sidebar when switching apps
-    
-    // Reset sidebar animation
-    Animated.parallel([
-      Animated.timing(sidebarAnim, {
-        toValue: -SIDEBAR_WIDTH,
-        duration: 0,
-        useNativeDriver: false,
-      }),
-      Animated.timing(overlayAnim, {
-        toValue: 0,
-        duration: 0,
-        useNativeDriver: false,
-      }),
-    ]).start();
+    setSettingsModalOpen(false); // Close settings when switching apps
     
     const newUrl = mode === 'files' ? FILES_URL : PULSEGUARD_URL;
     setCurrentUrl(newUrl);
@@ -183,103 +132,8 @@ export default function KioskScreen() {
     );
   };
 
-  const handleNavItemPress = (item: any) => {
-    // Close sidebar and handle navigation
-    setSidebarOpen(false);
-    Animated.parallel([
-      Animated.timing(sidebarAnim, {
-        toValue: -SIDEBAR_WIDTH,
-        duration: 300,
-        useNativeDriver: false,
-      }),
-      Animated.timing(overlayAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: false,
-      }),
-    ]).start();
-    
-    // You can add navigation logic here based on the item
-    console.log(`Navigate to: ${item.name}`);
-  };
 
-  const renderSidebar = () => (
-    <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
-      <View style={[styles.sidebarHeader, { paddingTop: insets.top + 20 }]}>
-        <View style={styles.sidebarTitleContainer}>
-          <Ionicons name="menu-outline" size={24} color="#1e40af" />
-          <Text style={styles.sidebarTitle}>Navigatie</Text>
-        </View>
-        <TouchableOpacity 
-          onPress={toggleSidebar}
-          style={styles.closeSidebarButton}
-        >
-          <Ionicons name="close" size={24} color="#6b7280" />
-        </TouchableOpacity>
-      </View>
-      
-      <ScrollView style={styles.sidebarContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.navSection}>
-          <Text style={styles.navSectionTitle}>PulseGuard</Text>
-          {pulseGuardNavItems.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.navItem}
-              onPress={() => handleNavItemPress(item)}
-            >
-              <Ionicons name={item.icon as any} size={20} color="#4b5563" />
-              <Text style={styles.navItemText}>{item.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
-        <View style={styles.navSection}>
-          <Text style={styles.navSectionTitle}>Bestanden</Text>
-          {fileNavItems.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.navItem}
-              onPress={() => handleNavItemPress(item)}
-            >
-              <Ionicons name={item.icon as any} size={20} color="#4b5563" />
-              <Text style={styles.navItemText}>{item.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-    </Animated.View>
-  );
-
-  const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top + 10 : 20 }]}>
-      <View style={styles.headerLeft}>
-        <TouchableOpacity 
-          onPress={toggleSidebar}
-          style={styles.menuButton}
-        >
-          <Ionicons name="menu" size={24} color="#ffffff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>PulseGuard</Text>
-      </View>
-      
-      <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, appMode === 'main' && styles.activeTab]}
-          onPress={() => switchApp('main')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabText, appMode === 'main' && styles.activeTabText]}>Dashboard</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, appMode === 'files' && styles.activeTab]}
-          onPress={() => switchApp('files')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabText, appMode === 'files' && styles.activeTabText]}>Files</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   const injectedJavaScript = `
     (function() {
@@ -585,13 +439,78 @@ export default function KioskScreen() {
 
   return (
     <View style={styles.container}> 
-      <StatusBar style="light" backgroundColor="#1e40af" />
+      <StatusBar style="auto" />
       
-      {renderHeader()}
+      {/* Lightning bolt button */}
+      <TouchableOpacity 
+        style={[styles.lightningButton, { top: insets.top + 10 }]}
+        onPress={toggleSettingsModal}
+        activeOpacity={0.8}
+      >
+        <View style={styles.lightningButtonCircle}>
+          <Ionicons name="flash" size={20} color="#ffffff" />
+        </View>
+      </TouchableOpacity>
       
-      {/* Content Container with max width */}
-      <View style={styles.contentContainer}>
-        <WebView
+      {/* Settings Modal */}
+      <Modal
+        visible={settingsModalOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSettingsModalOpen(false)}
+      >
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Instellingen</Text>
+            <TouchableOpacity onPress={() => setSettingsModalOpen(false)}>
+              <Ionicons name="close" size={24} color="#6b7280" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.modalContent}>
+            <Text style={styles.sectionTitle}>App Modus</Text>
+            
+            <TouchableOpacity 
+              style={[styles.modeButton, appMode === 'main' && styles.activeModeButton]}
+              onPress={() => {
+                switchApp('main');
+                setSettingsModalOpen(false);
+              }}
+            >
+              <Ionicons 
+                name="shield-checkmark-outline" 
+                size={24} 
+                color={appMode === 'main' ? '#ffffff' : '#6b7280'} 
+              />
+              <View style={styles.modeTextContainer}>
+                <Text style={[styles.modeButtonTitle, appMode === 'main' && styles.activeModeButtonTitle]}>PulseGuard</Text>
+                <Text style={[styles.modeButtonSubtitle, appMode === 'main' && styles.activeModeButtonSubtitle]}>Dashboard en monitoring</Text>
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.modeButton, appMode === 'files' && styles.activeModeButton]}
+              onPress={() => {
+                switchApp('files');
+                setSettingsModalOpen(false);
+              }}
+            >
+              <Ionicons 
+                name="folder-outline" 
+                size={24} 
+                color={appMode === 'files' ? '#ffffff' : '#6b7280'} 
+              />
+              <View style={styles.modeTextContainer}>
+                <Text style={[styles.modeButtonTitle, appMode === 'files' && styles.activeModeButtonTitle]}>Files</Text>
+                <Text style={[styles.modeButtonSubtitle, appMode === 'files' && styles.activeModeButtonSubtitle]}>Bestandsbeheer</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* WebView takes full screen */}
+      <WebView
           ref={webViewRef}
           source={{ uri: currentUrl }}
           style={styles.webview}
@@ -679,22 +598,6 @@ export default function KioskScreen() {
             return false;
           }}
         />
-      </View>
-
-      {/* Sidebar */}
-      {renderSidebar()}
-      
-      {/* Overlay */}
-      {sidebarOpen && (
-        <Animated.View 
-          style={[styles.overlay, { opacity: overlayAnim }]}
-        >
-          <Pressable 
-            style={styles.overlayPressable} 
-            onPress={toggleSidebar}
-          />
-        </Animated.View>
-      )}
     </View>
   );
 }
@@ -702,14 +605,20 @@ export default function KioskScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#ffffff',
   },
-  header: {
+  lightningButton: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 1000,
+  },
+  lightningButtonCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#1e40af',
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    borderBottomLeftRadius: 15,
-    borderBottomRightRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -719,80 +628,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  menuButton: {
-    padding: 8,
-    marginRight: 12,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 25,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeTab: {
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  activeTabText: {
-    color: '#1e40af',
-  },
-  contentContainer: {
-    flex: 1,
-    maxWidth: CONTENT_MAX_WIDTH,
-    alignSelf: 'center',
-    width: '100%',
-    backgroundColor: '#ffffff',
-    marginTop: 10,
-    marginHorizontal: 10,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
   webview: {
     flex: 1,
     backgroundColor: '#ffffff',
-    borderRadius: 12,
   },
   webFallback: {
     flex: 1,
@@ -804,88 +642,66 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 16,
   },
-  sidebar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: SIDEBAR_WIDTH,
+  modalContainer: {
+    flex: 1,
     backgroundColor: '#ffffff',
-    zIndex: 1000,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 2,
-      height: 0,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
-  sidebarHeader: {
-    padding: 20,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
   },
-  sidebarTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  sidebarTitle: {
-    fontSize: 18,
+  modalTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#1e40af',
-    marginLeft: 10,
+    color: '#111827',
   },
-  closeSidebarButton: {
-    position: 'absolute',
-    top: 20,
-    right: 15,
-    padding: 5,
-  },
-  sidebarContent: {
+  modalContent: {
     flex: 1,
-    paddingTop: 10,
+    padding: 20,
   },
-  navSection: {
-    marginBottom: 30,
-  },
-  navSectionTitle: {
-    fontSize: 14,
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-    marginHorizontal: 20,
+    color: '#374151',
+    marginBottom: 20,
   },
-  navItem: {
+  modeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    marginHorizontal: 10,
-    marginVertical: 2,
-    borderRadius: 8,
-    backgroundColor: 'transparent',
+    padding: 20,
+    marginBottom: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
   },
-  navItemText: {
-    fontSize: 16,
-    color: '#4b5563',
-    marginLeft: 12,
-    fontWeight: '500',
+  activeModeButton: {
+    backgroundColor: '#1e40af',
+    borderColor: '#1e40af',
   },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    zIndex: 999,
-  },
-  overlayPressable: {
+  modeTextContainer: {
+    marginLeft: 16,
     flex: 1,
+  },
+  modeButtonTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  activeModeButtonTitle: {
+    color: '#ffffff',
+  },
+  modeButtonSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  activeModeButtonSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 });
