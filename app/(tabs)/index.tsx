@@ -294,7 +294,7 @@ export default function KioskScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? insets.top : 0 }]}> 
       <StatusBar style="auto" backgroundColor="#3b82f6" />
       
       <WebView
@@ -322,7 +322,7 @@ export default function KioskScreen() {
         showsVerticalScrollIndicator={false}
         overScrollMode="never"
         nestedScrollEnabled={true}
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior="never"
         // Performance-related props kept within supported API
         nativeConfig={{
           props: {
