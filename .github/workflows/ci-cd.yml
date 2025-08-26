@@ -117,6 +117,7 @@ jobs:
       - name: 📦 Install dependencies
         run: |
           npm ci
+          npm install expo-dev-client
           npm install -g eas-cli@latest
 
       - name: 📱 Setup EAS build cache
