@@ -91,17 +91,10 @@ jobs:
             
             View run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  build-and-deploy:
+  build-android:
     needs: test
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
-    strategy:
-      matrix:
-        include:
-          - platform: android
-            runs-on: ubuntu-latest
-          - platform: ios
-            runs-on: macos-latest
-    runs-on: ${{ matrix.runs-on }}
+    runs-on: ubuntu-latest
     steps:
       - name: 🏗 Checkout repository
         uses: actions/checkout@v4
@@ -161,39 +154,10 @@ jobs:
 
       - name: 📋 Update metro.config.js for SVG support
         run: |
-          if [ -f ./metro.config.js ]; then
-            echo "Creating backup of metro.config.js"
-            cp ./metro.config.js ./metro.config.js.backup
-            echo "Updating metro.config.js to CommonJS format"
-            cat > ./metro.config.js << 'EOFMARKER'
-          /* eslint-disable @typescript-eslint/no-var-requires */
-          const { getDefaultConfig } = require('expo/metro-config');
-
-          const config = getDefaultConfig(__dirname);
-
-          const { transformer, resolver } = config;
-
-          config.transformer = {
-            ...transformer,
-            babelTransformerPath: require.resolve('react-native-svg-transformer/expo'),
-          };
-
-          config.resolver = {
-            ...resolver,
-            assetExts: resolver.assetExts.filter(ext => ext !== 'svg'),
-            sourceExts: [...resolver.sourceExts, 'svg'],
-          };
-
-          module.exports = config;
-          EOFMARKER
-            echo "metro.config.js updated to CommonJS format"
-          else
-            echo "metro.config.js not found"
-          fi
-
+          echo "Skipping metro.config.js update - using existing configuration"
 
       - name: 📱 Build Production APK
-        if: github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'prod-apk' || github.event_name == 'push' && (matrix.platform == 'android' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android')
+        if: github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'prod-apk' || github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android'
         run: |
           export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
           eas build --platform android --profile production-apk --local --non-interactive --output=./app-prod.apk
@@ -202,7 +166,7 @@ jobs:
           NODE_ENV: production
 
       - name: 📱 Build Production AAB
-        if: github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'prod-aab' || github.event_name == 'push' && (matrix.platform == 'android' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android')
+        if: github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'prod-aab' || github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android'
         run: |
           export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
           eas build --platform android --profile production --local --non-interactive --output=./app-prod.aab
@@ -210,18 +174,8 @@ jobs:
         env:
           NODE_ENV: production
 
-
-      - name: 📱 Build iOS Production
-        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'ios-prod') && (matrix.platform == 'ios' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'ios')
-        run: |
-          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
-          eas build --platform ios --profile production --local --non-interactive --output=./app-ios-prod.ipa
-          echo "IOS_BUILT=true" >> $GITHUB_ENV
-        env:
-          NODE_ENV: production
-
       - name: 🚀 Submit to Play Store
-        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'publish-stores') && (matrix.platform == 'android' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android') && env.AAB_BUILT == 'true'
+        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'publish-stores') && env.AAB_BUILT == 'true'
         run: |
           if [ -f "./app-prod.aab" ]; then
             eas submit -p android --path ./app-prod.aab --non-interactive
@@ -234,8 +188,120 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
 
+      - name: 📦 Upload Android build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-builds-android
+          path: |
+            app-prod.apk
+            app-prod.aab
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: 📢 Notify Android build completion
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK: ${{ env.SLACK_WEBHOOK }}
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: PulseGuard App - Android Build Results
+          SLACK_MESSAGE: |
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Platform: Android
+            Status: Build ${{ job.status == 'success' && 'completed successfully ✅' || 'failed ❌' }}
+            
+            APK Built: ${{ env.APK_BUILT == 'true' && 'Yes' || 'No' }}
+            AAB Built: ${{ env.AAB_BUILT == 'true' && 'Yes' || 'No' }}
+            AAB Submitted: ${{ env.AAB_SUBMITTED == 'true' && 'Yes' || env.AAB_SUBMITTED == 'false' && 'No' || 'N/A' }}
+            
+            View run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: 🎯 Notify Discord - Android Build
+        if: always() && env.DISCORD_WEBHOOK != ''
+        continue-on-error: true
+        run: |
+          STATUS="${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}"
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "{
+                 \"embeds\": [{
+                   \"title\": \"PulseGuard App - Android Build $STATUS\",
+                   \"description\": \"**Repository:** ${{ github.repository }}\\n**Branch:** ${{ github.ref_name }}\\n**Platform:** Android\\n\\n**APK Built:** ${{ env.APK_BUILT == 'true' && 'Yes' || 'No' }}\\n**AAB Built:** ${{ env.AAB_BUILT == 'true' && 'Yes' || 'No' }}\\n**AAB Submitted:** ${{ env.AAB_SUBMITTED == 'true' && 'Yes' || env.AAB_SUBMITTED == 'false' && 'No' || 'N/A' }}\\n\\n[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\",
+                   \"color\": ${{ job.status == 'success' && '65280' || '16711680' }},
+                   \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+                 }]
+               }" \
+               ${{ env.DISCORD_WEBHOOK }}
+
+  build-ios:
+    needs: test
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: 📦 Setup npm cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          npm install -g eas-cli@latest
+
+      - name: 📱 Setup EAS build cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.eas-build-local
+          key: ${{ runner.os }}-eas-build-local-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-eas-build-local-
+
+      - name: 🔄 Verify EAS CLI installation
+        run: |
+          echo "EAS CLI version:"
+          eas --version
+
+      - name: 📋 Fix package.json main entry
+        run: |
+          # Fix the main entry in package.json
+          if [ -f ./package.json ]; then
+            # Create a backup
+            cp package.json package.json.bak
+            # Update the package.json using sed (jq not available on macOS by default)
+            sed -i '' 's|"main": "expo-router/entry"|"main": "node_modules/expo/AppEntry.js"|' package.json
+            echo "Updated package.json main entry"
+            cat package.json | grep "main"
+          else
+            echo "package.json not found"
+            exit 1
+          fi
+
+      - name: 📱 Build iOS Production
+        if: github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'ios-prod' || github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'ios'
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          eas build --platform ios --profile production --local --non-interactive --output=./app-ios-prod.ipa
+          echo "IOS_BUILT=true" >> $GITHUB_ENV
+        env:
+          NODE_ENV: production
+
       - name: 🍎 Submit to App Store
-        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'publish-stores') && (matrix.platform == 'ios' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'ios') && env.IOS_BUILT == 'true'
+        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'publish-stores') && env.IOS_BUILT == 'true'
         run: |
           if [ -f "./app-ios-prod.ipa" ]; then
             eas submit -p ios --path ./app-ios-prod.ipa --non-interactive
@@ -250,36 +316,48 @@ jobs:
           EXPO_APPLE_PASSWORD: ${{ secrets.EXPO_APPLE_PASSWORD }}
           EXPO_TEAM_ID: ${{ secrets.EXPO_TEAM_ID }}
 
-      - name: 📦 Upload build artifacts to GitHub
+      - name: 📦 Upload iOS build artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-builds-${{ matrix.platform }}
+          name: app-builds-ios
           path: |
-            ./app-prod.apk
-            ./app-prod.aab
-            ./app-ios-prod.ipa
+            app-ios-prod.ipa
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: 📢 Notify build completion
-        if: always() && env.SLACK_WEBHOOK != ''
+      - name: 📢 Notify iOS build completion
+        if: always()
         uses: rtCamp/action-slack-notify@v2
         continue-on-error: true
         env:
           SLACK_WEBHOOK: ${{ env.SLACK_WEBHOOK }}
           SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
-          SLACK_TITLE: PulseGuard App - Build Results
+          SLACK_TITLE: PulseGuard App - iOS Build Results
           SLACK_MESSAGE: |
             Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
-            Platform: ${{ matrix.platform }}
+            Platform: iOS
             Status: Build ${{ job.status == 'success' && 'completed successfully ✅' || 'failed ❌' }}
             
-            APK Built: ${{ env.APK_BUILT == 'true' && 'Yes' || 'No' }}
-            AAB Built: ${{ env.AAB_BUILT == 'true' && 'Yes' || 'No' }}
             iOS Built: ${{ env.IOS_BUILT == 'true' && 'Yes' || 'No' }}
-            AAB Submitted: ${{ env.AAB_SUBMITTED == 'true' && 'Yes' || env.AAB_SUBMITTED == 'false' && 'No' || 'N/A' }}
             iOS Submitted: ${{ env.IOS_SUBMITTED == 'true' && 'Yes' || env.IOS_SUBMITTED == 'false' && 'No' || 'N/A' }}
             
             View run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: 🎯 Notify Discord - iOS Build
+        if: always() && env.DISCORD_WEBHOOK != ''
+        continue-on-error: true
+        run: |
+          STATUS="${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}"
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "{
+                 \"embeds\": [{
+                   \"title\": \"PulseGuard App - iOS Build $STATUS\",
+                   \"description\": \"**Repository:** ${{ github.repository }}\\n**Branch:** ${{ github.ref_name }}\\n**Platform:** iOS\\n\\n**iOS Built:** ${{ env.IOS_BUILT == 'true' && 'Yes' || 'No' }}\\n**iOS Submitted:** ${{ env.IOS_SUBMITTED == 'true' && 'Yes' || env.IOS_SUBMITTED == 'false' && 'No' || 'N/A' }}\\n\\n[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\",
+                   \"color\": ${{ job.status == 'success' && '65280' || '16711680' }},
+                   \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+                 }]
+               }" \
+               ${{ env.DISCORD_WEBHOOK }}
