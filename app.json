@@ -68,10 +68,10 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e74f7f26-6984-4bd3-9170-a1bf28f4cfa3"
+        "projectId": "59793018-86dd-49b7-8947-53daa966fea2"
       }
     },
-    "owner": "pulseguard",
+    "owner": "arjandenh07",
     "runtimeVersion": {
       "policy": "appVersion"
     },
