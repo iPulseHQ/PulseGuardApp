@@ -117,6 +117,9 @@ jobs:
         run: |
           npm ci
           npm install -g eas-cli@latest
+          # List current dev dependencies to verify installation
+          echo "Current devDependencies:"
+          npm list --depth=0 --dev
           # Ensure all dev dependencies are properly installed
           npm install babel-plugin-module-resolver --save-dev
           npm install react-native-svg-transformer --save-dev
@@ -262,6 +265,9 @@ jobs:
         run: |
           npm ci
           npm install -g eas-cli@latest
+          # List current dev dependencies to verify installation
+          echo "Current devDependencies:"
+          npm list --depth=0 --dev
           # Ensure all dev dependencies are properly installed
           npm install babel-plugin-module-resolver --save-dev
           npm install react-native-svg-transformer --save-dev
