@@ -15,25 +15,11 @@
       }
     },
     "production": {
-      "autoIncrement": true,
-      "hooks": {
-        "postPublish": [
-          {
-            "file": "./scripts/slack-notify.js"
-          }
-        ]
-      }
+      "autoIncrement": true
     },
     "production-apk": {
       "android": {
         "buildType": "apk"
-      },
-      "hooks": {
-        "postPublish": [
-          {
-            "file": "./scripts/slack-notify.js"
-          }
-        ]
       }
     }
   },

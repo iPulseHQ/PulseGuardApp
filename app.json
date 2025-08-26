@@ -76,7 +76,11 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/e74f7f26-6984-4bd3-9170-a1bf28f4cfa3"
+      "url": "https://u.expo.dev/e74f7f26-6984-4bd3-9170-a1bf28f4cfa3",
+      "fallbackToCacheTimeout": 3000,
+      "checkAutomatically": "ON_ERROR_RECOVERY",
+      "codeSigningCertificate": "",
+      "codeSigningMetadata": {}
     }
   }
 }
