@@ -1,18 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Alert, Text, TouchableOpacity, TextInput } from 'react-native';
-import { useAuth, useUser, useSignIn, useOAuth } from '@clerk/clerk-expo';
+import { useAuth, useSignIn, useOAuth, SignedIn, SignedOut } from '@clerk/clerk-expo';
 import { useLocalSearchParams, router } from 'expo-router';
-import { SignedIn, SignedOut } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import AppLauncher from '../app-launcher';
 import WebViewApp from '../../components/WebViewApp';
-import GlassCard from '../../components/GlassCard';
 
-const URLS = {
-  main: process.env.EXPO_PUBLIC_PULSEGUARD_URL || 'https://app.pulseguard.pro',
-  files: process.env.EXPO_PUBLIC_PULSEFILES_URL || 'https://files.pulseguard.pro',
-  crm: process.env.EXPO_PUBLIC_PULSECRM_URL || 'https://crm.staging.pulseguard.pro',
-};
 
 export default function MainScreen() {
   console.log('MainScreen rendering...');

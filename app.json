@@ -23,6 +23,7 @@
         "backgroundColor": "#3b82f6"
       },
       "package": "com.pulseguard.app",
+      "versionCode": 5,
       "edgeToEdgeEnabled": true,
       "permissions": [
         "WAKE_LOCK",

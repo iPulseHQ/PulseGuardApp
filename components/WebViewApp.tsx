@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useNotifications } from '../hooks/useNotifications';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth, useUser } from '@clerk/clerk-expo';
 
 interface WebViewAppProps {
   appMode: 'main' | 'files' | 'crm';
@@ -27,14 +26,13 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
   const webViewRef = useRef<WebView>(null);
   const insets = useSafeAreaInsets();
   const { expoPushToken, sendTokenToWebView } = useNotifications();
-  const { getToken } = useAuth();
-  const { user } = useUser();
   const [canGoBack, setCanGoBack] = useState(false);
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tokenSent, setTokenSent] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [injectedJS, setInjectedJS] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const isWeb = Platform.OS === 'web';
 
   // Keep screen awake in kiosk mode (native only)
@@ -70,6 +68,147 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
 
   // Generate basic injected JavaScript for kiosk mode
   useEffect(() => {
+    const createInjectedJavaScript = async () => {
+      return `
+        (function() {
+          console.log('Injected JavaScript executing...');
+          console.log('Current URL:', window.location.href);
+          console.log('App Mode:', '${appMode}');
+          
+          // Add custom styling for kiosk mode
+          const style = document.createElement('style');
+          style.textContent = \`
+            body {
+              -webkit-touch-callout: none;
+              -webkit-user-select: none;
+              -khtml-user-select: none;
+              -moz-user-select: none;
+              -ms-user-select: none;
+              user-select: none;
+              overflow-x: hidden;
+              -webkit-overflow-scrolling: touch;
+            }
+            
+            button, a, .clickable, [role="button"] {
+              min-height: 44px;
+              min-width: 44px;
+            }
+            
+            .content, main, [role="main"], .main-content {
+              padding-bottom: 100px !important;
+              -webkit-overflow-scrolling: touch;
+            }
+          \`;
+          document.head.appendChild(style);
+          
+          // Notify the web app that it's running in kiosk mode
+          window.isKioskMode = true;
+          window.appMode = '${appMode}';
+          
+          // Check for test notification in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const testNotification = urlParams.get('test_notification');
+          if (testNotification) {
+            console.log('Test notification requested:', testNotification);
+            
+            // Send test notification after page loads
+            setTimeout(() => {
+              fetch('/api/expo-push-token/test', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'Accept': 'application/json'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                  type: testNotification
+                })
+              })
+              .then(response => response.json())
+              .then(data => {
+                console.log('Test notification result:', data);
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'test-notification-result',
+                    success: true,
+                    message: data.message
+                  }));
+                }
+              })
+              .catch(error => {
+                console.error('Test notification error:', error);
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'test-notification-result',
+                    success: false,
+                    error: error.message
+                  }));
+                }
+              });
+            }, 2000);
+          }
+          
+          // Listen for push token messages from React Native
+          window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'expo-push-token') {
+              console.log('Received push token from native app:', event.data.data);
+              
+              // Register the token with the backend
+              const endpoints = {
+                main: '/api/expo-push-token',
+                files: '/api/user/push-token',
+                crm: '/api/push-token'
+              };
+              
+              const endpoint = endpoints['${appMode}'] || endpoints.main;
+              
+              fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'Accept': 'application/json'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(event.data.data)
+              })
+              .then(response => {
+                if (response.ok) {
+                  console.log('Push token registered successfully');
+                  if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'token-registration-success',
+                      message: 'Push token registered successfully'
+                    }));
+                  }
+                } else {
+                  console.error('Failed to register push token:', response.status);
+                  if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'token-registration-error',
+                      message: 'Failed to register push token: ' + response.status
+                    }));
+                  }
+                }
+              })
+              .catch(error => {
+                console.error('Error registering push token:', error);
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'token-registration-error',
+                    message: 'Network error: ' + error.message
+                  }));
+                }
+              });
+            }
+          });
+          
+          true;
+        })();
+      `;
+    };
+    
     const generateJS = async () => {
       console.log('Generating injected JavaScript...');
       const js = await createInjectedJavaScript();
@@ -77,7 +216,7 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
       setInjectedJS(js);
     };
     generateJS();
-  }, []);
+  }, [appMode]);
 
   // Send token when both token and authentication are ready
   useEffect(() => {
@@ -134,147 +273,6 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
     );
   };
 
-  // Create basic injected JavaScript for kiosk mode only
-  const createInjectedJavaScript = async () => {
-    return `
-      (function() {
-        console.log('Injected JavaScript executing...');
-        console.log('Current URL:', window.location.href);
-        console.log('App Mode:', '${appMode}');
-        
-        // Add custom styling for kiosk mode
-        const style = document.createElement('style');
-        style.textContent = \`
-          body {
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            -khtml-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-            overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
-          }
-          
-          button, a, .clickable, [role="button"] {
-            min-height: 44px;
-            min-width: 44px;
-          }
-          
-          .content, main, [role="main"], .main-content {
-            padding-bottom: 100px !important;
-            -webkit-overflow-scrolling: touch;
-          }
-        \`;
-        document.head.appendChild(style);
-        
-        // Notify the web app that it's running in kiosk mode
-        window.isKioskMode = true;
-        window.appMode = '${appMode}';
-        
-        // Check for test notification in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const testNotification = urlParams.get('test_notification');
-        if (testNotification) {
-          console.log('Test notification requested:', testNotification);
-          
-          // Send test notification after page loads
-          setTimeout(() => {
-            fetch('/api/expo-push-token/test', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-              },
-              credentials: 'same-origin',
-              body: JSON.stringify({
-                type: testNotification
-              })
-            })
-            .then(response => response.json())
-            .then(data => {
-              console.log('Test notification result:', data);
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'test-notification-result',
-                  success: true,
-                  message: data.message
-                }));
-              }
-            })
-            .catch(error => {
-              console.error('Test notification error:', error);
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'test-notification-result',
-                  success: false,
-                  error: error.message
-                }));
-              }
-            });
-          }, 2000);
-        }
-        
-        // Listen for push token messages from React Native
-        window.addEventListener('message', function(event) {
-          if (event.data && event.data.type === 'expo-push-token') {
-            console.log('Received push token from native app:', event.data.data);
-            
-            // Register the token with the backend
-            const endpoints = {
-              main: '/api/expo-push-token',
-              files: '/api/user/push-token',
-              crm: '/api/push-token'
-            };
-            
-            const endpoint = endpoints['${appMode}'] || endpoints.main;
-            
-            fetch(endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-              },
-              credentials: 'same-origin',
-              body: JSON.stringify(event.data.data)
-            })
-            .then(response => {
-              if (response.ok) {
-                console.log('Push token registered successfully');
-                if (window.ReactNativeWebView) {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'token-registration-success',
-                    message: 'Push token registered successfully'
-                  }));
-                }
-              } else {
-                console.error('Failed to register push token:', response.status);
-                if (window.ReactNativeWebView) {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'token-registration-error',
-                    message: 'Failed to register push token: ' + response.status
-                  }));
-                }
-              }
-            })
-            .catch(error => {
-              console.error('Error registering push token:', error);
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'token-registration-error',
-                  message: 'Network error: ' + error.message
-                }));
-              }
-            });
-          }
-        });
-        
-        true;
-      })();
-    `;
-  };
 
   const userAgent = 'PulseGuardApp/2.0 (Mobile App)';
 
@@ -292,7 +290,22 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
 
   return (
     <View style={styles.container}> 
-      <StatusBar style="auto" />
+      <StatusBar style="light" backgroundColor="#1e40af" />
+      
+      {/* Loading overlay */}
+      {isLoading && (
+        <View style={[styles.loadingOverlay, { paddingTop: insets.top }]}>
+          <View style={styles.loadingContent}>
+            <Ionicons name="shield-checkmark" size={64} color="#ffffff" />
+            <Text style={styles.loadingTitle}>Laden van {getAppDisplayName(appMode)}</Text>
+            <Text style={styles.loadingSubtitle}>Even geduld, de applicatie wordt geladen...</Text>
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBar, { width: `${loadingProgress}%` }]} />
+            </View>
+            <Text style={styles.progressText}>{Math.round(loadingProgress)}%</Text>
+          </View>
+        </View>
+      )}
       
       {/* Back button */}
       <TouchableOpacity 
@@ -309,7 +322,7 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
       <WebView
         ref={webViewRef}
         source={{ uri: currentUrl }}
-        style={styles.webview}
+        style={[styles.webview, { marginTop: insets.top + 60 }]}
         onNavigationStateChange={handleNavigationStateChange}
         onError={handleError}
         injectedJavaScript={injectedJS || ''}
@@ -322,6 +335,9 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
         javaScriptEnabled={true}
         domStorageEnabled={true}
         startInLoadingState={true}
+        onLoadProgress={({ nativeEvent }) => {
+          setLoadingProgress(nativeEvent.progress * 100);
+        }}
         scalesPageToFit={false}
         allowsBackForwardNavigationGestures={true}
         allowsLinkPreview={false}
@@ -362,13 +378,14 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
             } else if (data.type === 'token-registration-error') {
               console.error('Push token registration failed:', data.message);
             }
-          } catch (error) {
+          } catch {
             console.log('Raw message from WebView:', event.nativeEvent.data);
           }
         }}
         onLoadStart={() => {
           console.log(`Loading ${getAppDisplayName(appMode)}...`);
           setIsLoading(true);
+          setLoadingProgress(0);
           setIsAuthenticated(false);
           setTokenSent(false);
         }}
@@ -396,7 +413,7 @@ export default function WebViewApp({ appMode, initialUrl, onBackToLauncher }: We
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e40af',
   },
   backButton: {
     position: 'absolute',
@@ -432,5 +449,53 @@ const styles = StyleSheet.create({
   webFallbackText: {
     color: '#111827',
     fontSize: 16,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#1e40af',
+    zIndex: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  loadingTitle: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadingSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 22,
+  },
+  progressBarContainer: {
+    width: 200,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 2,
+  },
+  progressText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

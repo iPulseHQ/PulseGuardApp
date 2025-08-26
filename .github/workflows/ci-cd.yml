@@ -76,13 +76,20 @@ jobs:
         run: npm run lint
 
       - name: 📢 Notify test results
-        if: always()
+        if: always() && env.SLACK_WEBHOOK != ''
         uses: rtCamp/action-slack-notify@v2
+        continue-on-error: true
         env:
           SLACK_WEBHOOK: ${{ env.SLACK_WEBHOOK }}
           SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
-          SLACK_TITLE: Test Results
-          SLACK_MESSAGE: Tests ${{ job.status == 'success' && 'passed ✅' || 'failed ❌' }}
+          SLACK_TITLE: PulseGuard App - Test Results
+          SLACK_MESSAGE: |
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Status: Tests ${{ job.status == 'success' && 'passed ✅' || 'failed ❌' }}
+            
+            View run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   build-and-deploy:
     needs: test
@@ -189,6 +196,7 @@ jobs:
         run: |
           export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
           eas build --platform android --profile production-apk --local --non-interactive --output=./app-prod.apk
+          echo "APK_BUILT=true" >> $GITHUB_ENV
         env:
           NODE_ENV: production
 
@@ -197,6 +205,7 @@ jobs:
         run: |
           export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
           eas build --platform android --profile production --local --non-interactive --output=./app-prod.aab
+          echo "AAB_BUILT=true" >> $GITHUB_ENV
         env:
           NODE_ENV: production
 
@@ -206,21 +215,34 @@ jobs:
         run: |
           export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
           eas build --platform ios --profile production --local --non-interactive --output=./app-ios-prod.ipa
+          echo "IOS_BUILT=true" >> $GITHUB_ENV
         env:
           NODE_ENV: production
 
       - name: 🚀 Submit to Play Store
-        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'publish-stores') && (matrix.platform == 'android' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android')
+        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'publish-stores') && (matrix.platform == 'android' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android') && env.AAB_BUILT == 'true'
         run: |
-          eas submit -p android --path ./app-prod.aab --non-interactive
+          if [ -f "./app-prod.aab" ]; then
+            eas submit -p android --path ./app-prod.aab --non-interactive
+            echo "AAB_SUBMITTED=true" >> $GITHUB_ENV
+          else
+            echo "AAB file not found, skipping Play Store submission"
+            echo "AAB_SUBMITTED=false" >> $GITHUB_ENV
+          fi
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
 
       - name: 🍎 Submit to App Store
-        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'publish-stores') && (matrix.platform == 'ios' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'ios')
+        if: (github.event.inputs.buildType == 'all' || github.event.inputs.buildType == 'publish-stores') && (matrix.platform == 'ios' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'ios') && env.IOS_BUILT == 'true'
         run: |
-          eas submit -p ios --path ./app-ios-prod.ipa --non-interactive
+          if [ -f "./app-ios-prod.ipa" ]; then
+            eas submit -p ios --path ./app-ios-prod.ipa --non-interactive
+            echo "IOS_SUBMITTED=true" >> $GITHUB_ENV
+          else
+            echo "IPA file not found, skipping App Store submission"
+            echo "IOS_SUBMITTED=false" >> $GITHUB_ENV
+          fi
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_APPLE_ID: ${{ secrets.EXPO_APPLE_ID }}
@@ -228,20 +250,35 @@ jobs:
           EXPO_TEAM_ID: ${{ secrets.EXPO_TEAM_ID }}
 
       - name: 📦 Upload build artifacts to GitHub
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-builds
+          name: app-builds-${{ matrix.platform }}
           path: |
             ./app-prod.apk
             ./app-prod.aab
             ./app-ios-prod.ipa
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: 📢 Notify build completion
-        if: always()
+        if: always() && env.SLACK_WEBHOOK != ''
         uses: rtCamp/action-slack-notify@v2
+        continue-on-error: true
         env:
           SLACK_WEBHOOK: ${{ env.SLACK_WEBHOOK }}
           SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
-          SLACK_TITLE: Build Results
-          SLACK_MESSAGE: Build ${{ job.status == 'success' && 'completed successfully ✅' || 'failed ❌' }}
+          SLACK_TITLE: PulseGuard App - Build Results
+          SLACK_MESSAGE: |
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Platform: ${{ matrix.platform }}
+            Status: Build ${{ job.status == 'success' && 'completed successfully ✅' || 'failed ❌' }}
+            
+            APK Built: ${{ env.APK_BUILT == 'true' && 'Yes' || 'No' }}
+            AAB Built: ${{ env.AAB_BUILT == 'true' && 'Yes' || 'No' }}
+            iOS Built: ${{ env.IOS_BUILT == 'true' && 'Yes' || 'No' }}
+            AAB Submitted: ${{ env.AAB_SUBMITTED == 'true' && 'Yes' || env.AAB_SUBMITTED == 'false' && 'No' || 'N/A' }}
+            iOS Submitted: ${{ env.IOS_SUBMITTED == 'true' && 'Yes' || env.IOS_SUBMITTED == 'false' && 'No' || 'N/A' }}
+            
+            View run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser, useAuth } from '@clerk/clerk-expo';
-import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
 import GradientBackground from '../components/GradientBackground';
 import GlassCard from '../components/GlassCard';
 import { useNotifications } from '../hooks/useNotifications';
 
-const { width: screenWidth } = Dimensions.get('window');
 
 interface AppOption {
   id: string;
@@ -57,7 +55,7 @@ export default function AppLauncher() {
   
   const insets = useSafeAreaInsets();
   const { user } = useUser();
-  const { signOut, signIn } = useAuth();
+  const { signOut } = useAuth();
   const { expoPushToken } = useNotifications();
   const [isLoading, setIsLoading] = useState(false);
   
