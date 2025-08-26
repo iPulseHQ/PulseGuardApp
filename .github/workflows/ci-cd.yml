@@ -133,22 +133,18 @@ jobs:
           echo "EAS CLI version:"
           eas --version
 
-      - name: 📋 Fix package.json main entry
+      - name: 📋 Verify package.json main entry
         run: |
-          # Check if jq is installed, if not install it
-          if ! command -v jq &> /dev/null; then
-            echo "Installing jq..."
-            sudo apt-get update && sudo apt-get install -y jq
-          fi
-
-          # Fix the main entry in package.json
+          # Verify the main entry in package.json is correct for Expo Router
           if [ -f ./package.json ]; then
-            # Create a backup
-            cp package.json package.json.bak
-            # Update the package.json
-            jq '.main = "node_modules/expo/AppEntry.js"' package.json > package.json.tmp && mv package.json.tmp package.json
-            echo "Updated package.json main entry"
-            cat package.json | grep "main"
+            MAIN_ENTRY=$(grep '"main"' package.json | cut -d'"' -f4)
+            echo "Current main entry: $MAIN_ENTRY"
+            if [ "$MAIN_ENTRY" = "expo-router/entry" ]; then
+              echo "✅ Main entry is correct for Expo Router"
+            else
+              echo "⚠️ Main entry may be incorrect. Expected: expo-router/entry, Found: $MAIN_ENTRY"
+              echo "Keeping existing main entry as it may be intentional"
+            fi
           else
             echo "package.json not found"
             exit 1
@@ -280,16 +276,18 @@ jobs:
           echo "EAS CLI version:"
           eas --version
 
-      - name: 📋 Fix package.json main entry
+      - name: 📋 Verify package.json main entry
         run: |
-          # Fix the main entry in package.json
+          # Verify the main entry in package.json is correct for Expo Router
           if [ -f ./package.json ]; then
-            # Create a backup
-            cp package.json package.json.bak
-            # Update the package.json using sed (jq not available on macOS by default)
-            sed -i '' 's|"main": "expo-router/entry"|"main": "node_modules/expo/AppEntry.js"|' package.json
-            echo "Updated package.json main entry"
-            cat package.json | grep "main"
+            MAIN_ENTRY=$(grep '"main"' package.json | cut -d'"' -f4)
+            echo "Current main entry: $MAIN_ENTRY"
+            if [ "$MAIN_ENTRY" = "expo-router/entry" ]; then
+              echo "✅ Main entry is correct for Expo Router"
+            else
+              echo "⚠️ Main entry may be incorrect. Expected: expo-router/entry, Found: $MAIN_ENTRY"
+              echo "Keeping existing main entry as it may be intentional"
+            fi
           else
             echo "package.json not found"
             exit 1
