@@ -96,11 +96,12 @@ jobs:
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
-        platform: [android]
         include:
+          - platform: android
+            runs-on: ubuntu-latest
           - platform: ios
             runs-on: macos-latest
-    runs-on: ${{ matrix.platform == 'ios' && 'macos-latest' || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - name: 🏗 Checkout repository
         uses: actions/checkout@v4

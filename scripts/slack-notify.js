@@ -1,7 +1,12 @@
 import fetch from "node-fetch";
 
 export default async function postPublishHook({ url, exp, ...rest }) {
-  const webhookUrl = "https://hooks.slack.com/services/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";
+  const webhookUrl = process.env.SLACK_WEBHOOK || process.env.EXPO_PUBLIC_SLACK_WEBHOOK;
+  
+  if (!webhookUrl) {
+    console.warn("⚠️ Slack webhook URL niet geconfigureerd - notificatie wordt overgeslagen");
+    return;
+  }
   
   try {
     await fetch(webhookUrl, {
