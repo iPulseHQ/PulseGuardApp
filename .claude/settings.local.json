@@ -24,7 +24,9 @@
       "Bash(pkill:*)",
       "Bash(taskkill:*)",
       "Bash(npx expo export:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)"
     ],
     "deny": [],
     "ask": [],

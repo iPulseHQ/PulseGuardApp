@@ -15,11 +15,17 @@
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_SKIP_DOCTOR": "1"
+      }
     },
     "production-apk": {
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_SKIP_DOCTOR": "1"
       }
     }
   },
