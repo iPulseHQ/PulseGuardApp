@@ -117,8 +117,10 @@ jobs:
         run: |
           npm ci
           npm install -g eas-cli@latest
-          # Ensure SVG transformer is available for build
-          npm list react-native-svg-transformer || npm install react-native-svg-transformer --save-dev
+          # Ensure all dev dependencies are properly installed
+          npm install babel-plugin-module-resolver --save-dev
+          npm install react-native-svg-transformer --save-dev
+          npm install eslint-config-expo --save-dev
 
       - name: 📱 Setup EAS build cache
         uses: actions/cache@v3
@@ -260,8 +262,10 @@ jobs:
         run: |
           npm ci
           npm install -g eas-cli@latest
-          # Ensure SVG transformer is available for build
-          npm list react-native-svg-transformer || npm install react-native-svg-transformer --save-dev
+          # Ensure all dev dependencies are properly installed
+          npm install babel-plugin-module-resolver --save-dev
+          npm install react-native-svg-transformer --save-dev
+          npm install eslint-config-expo --save-dev
 
       - name: 📱 Setup EAS build cache
         uses: actions/cache@v3
