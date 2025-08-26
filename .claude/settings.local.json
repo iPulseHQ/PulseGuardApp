@@ -5,12 +5,19 @@
       "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)",
       "Read(/C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard/**)",
       "Bash(npm install:*)",
-      "Bash(npx tailwindcss:*)"
+      "Bash(npx tailwindcss:*)",
+      "Bash(npx expo install:*)",
+      "Bash(npx expo start:*)",
+      "WebFetch(domain:clerk.com)",
+      "Bash(php artisan:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": [],
     "additionalDirectories": [
-      "C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard"
+      "C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseGuard",
+      "C:\\Users\\Arjan\\Documents\\1. Projecten\\pulsecrm",
+      "C:\\Users\\Arjan\\Documents\\1. Projecten\\PulseFiles\\"
     ]
   }
 }

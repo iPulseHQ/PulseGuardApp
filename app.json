@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "PulseGuardApp",
+    "name": "PulseGuard App",
     "slug": "pulseguard",
     "version": "2.0.0",
     "orientation": "portrait",
@@ -59,7 +59,8 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

@@ -155,8 +155,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   useEffect(() => {
     if (!notificationsSupported) {
-      console.log('⚠️  Running in Expo Go - Push notifications not available');
-      console.log('📱 For push notifications, create a development build with: npx expo run:android or npx expo run:ios');
+      console.log('Running in Expo Go - Push notifications not available');
+      console.log('For push notifications, create a development build with: npx expo run:android or npx expo run:ios');
       return;
     }
 
