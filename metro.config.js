@@ -1,4 +1,5 @@
 const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
@@ -32,7 +33,7 @@ config.resolver = {
     'web.js', 'web.ts', 'web.tsx'
   ],
   alias: {
-    '@': './',
+    '@': path.resolve(__dirname, '.'),
     'react-native-reanimated/lib/reanimated2/web': 'react-native-reanimated/lib/module/reanimated2/web',
     'react-native-reanimated': 'react-native-reanimated/lib/module',
   },
