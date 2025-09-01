@@ -1,38 +1,43 @@
 {
   "expo": {
-    "name": "PulseGuard App",
-    "slug": "pulseguard",
+    "name": "PulseGuard",
+    "slug": "pulseguard-mobile",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/android-chrome-512x512.png",
-    "scheme": "pulseguardapp",
+    "scheme": "pulseguard",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "description": "PulseGuard - Server monitoring and management platform",
+
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pulseguard.app",
+      "bundleIdentifier": "com.pulseguard.mobile",
       "buildNumber": "2.0.0",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsArbitraryLoadsForMedia": true,
+          "NSAllowsArbitraryLoadsInWebContent": true
+        }
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-chrome-512x512.png",
-        "backgroundColor": "#3b82f6"
+        "backgroundColor": "#1e40af"
       },
-      "package": "com.pulseguard.app",
-      "versionCode": 5,
+      "package": "com.pulseguard.mobile",
+      "versionCode": 6,
       "edgeToEdgeEnabled": true,
       "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
         "WAKE_LOCK",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "android.permission.SCHEDULE_EXACT_ALARM",
-        "WAKE_LOCK",
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
+        "POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
@@ -56,11 +61,12 @@
         "expo-notifications",
         {
           "icon": "./assets/images/android-chrome-192x192.png",
-          "color": "#3b82f6"
+          "color": "#1e40af",
+          "defaultChannel": "default",
+          "sounds": []
         }
       ],
       "expo-font",
-      "expo-web-browser",
       "expo-secure-store"
     ],
     "experiments": {
@@ -82,6 +88,13 @@
       "checkAutomatically": "ON_ERROR_RECOVERY",
       "codeSigningCertificate": "",
       "codeSigningMetadata": {}
+    },
+    "notification": {
+      "icon": "./assets/images/android-chrome-192x192.png",
+      "color": "#1e40af",
+      "iosDisplayInForeground": true,
+      "androidMode": "default",
+      "androidCollapsedTitle": "PulseGuard Alert"
     }
   }
 }

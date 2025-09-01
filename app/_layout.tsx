@@ -1,6 +1,8 @@
+import { ClerkProvider } from '@clerk/clerk-expo';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -8,9 +10,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NotificationProvider } from '../hooks/useNotifications';
-import { ClerkProvider, ClerkLoaded, ClerkLoading } from '@clerk/clerk-expo';
-import * as SecureStore from 'expo-secure-store';
-import { View, Text } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -24,7 +23,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Clerk publishable key
+// Clerk publishable key - needed for WebView authentication
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
 if (!publishableKey) {
@@ -33,7 +32,7 @@ if (!publishableKey) {
   );
 }
 
-// Token cache for Clerk
+// Token cache for Clerk (needed for API calls to Laravel backend)
 const tokenCache = {
   async getToken(key: string) {
     try {
@@ -53,7 +52,7 @@ const tokenCache = {
 
 export default function RootLayout() {
   console.log('RootLayout rendering...');
-  
+
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
@@ -72,24 +71,17 @@ export default function RootLayout() {
     return null;
   }
 
-  console.log('Rendering main app with publishableKey:', !!publishableKey);
+  console.log('Rendering main app');
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <NotificationProvider>
-            <ClerkLoading>
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1e40af' }}>
-                <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '600' }}>PulseGuard wordt geladen...</Text>
-              </View>
-            </ClerkLoading>
-            <ClerkLoaded>
-              <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-            </ClerkLoaded>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
             <StatusBar style="auto" />
           </NotificationProvider>
         </SafeAreaProvider>
