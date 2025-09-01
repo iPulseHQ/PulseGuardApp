@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import NotificationToast from './NotificationToast';
 
@@ -13,8 +13,17 @@ export default function PulseGuardWebView() {
   const [isLoading, setIsLoading] = useState(true);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
-  // Register for push notifications
+  // Configure notification handling and register for push notifications
   useEffect(() => {
+    // Configure how notifications should be handled
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+
     registerForPushNotificationsAsync();
   }, []);
 
@@ -47,9 +56,19 @@ export default function PulseGuardWebView() {
   const registerForPushNotificationsAsync = async () => {
     const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
-    if (!Device.isDevice || isExpoGo) {
-      console.log('Push notifications only work on physical devices (not Expo Go)');
-      console.log('For push notifications, create a development build with: npx expo run:android or npx expo run:ios');
+    if (!Device.isDevice) {
+      console.log('Push notifications only work on physical devices');
+      return;
+    }
+
+    if (isExpoGo) {
+      console.log('Push notifications not supported in Expo Go - need development build');
+      // Show user-friendly message
+      Alert.alert(
+        'Push Notificaties',
+        'Push notificaties werken niet in Expo Go. Download de app uit de App Store of TestFlight voor notificaties.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -88,10 +107,115 @@ export default function PulseGuardWebView() {
     }
   };
 
-  // Store push token for when user logs in via WebView
+  // Store push token and send to WebView for registration
   const registerPushToken = async (token: string) => {
     console.log('Expo push token available:', token);
-    // Token will be registered via Laravel webhook when user is authenticated in WebView
+    
+    // Send token to WebView immediately if available
+    if (webViewRef.current) {
+      sendTokenToWebView(token);
+    }
+    
+    // Store token in state so it can be sent when WebView loads
+    setExpoPushToken(token);
+  };
+
+  // Send push token to WebView for registration with Laravel backend
+  const sendTokenToWebView = (token: string) => {
+    if (!webViewRef.current) {
+      console.log('WebView not ready, storing token for later');
+      return;
+    }
+
+    try {
+      const deviceInfo = {
+        token: token,
+        device_name: Device.deviceName || 'PulseGuard Mobile',
+        device_type: Platform.OS,
+        app_version: Constants.expoConfig?.version || '2.0.0',
+        is_expo_go: Constants.executionEnvironment === 'storeClient',
+        app_name: 'PulseGuard Mobile'
+      };
+
+      // JavaScript to register the push token with Laravel
+      const script = `
+        (function() {
+          // Wait for jQuery and ensure user is authenticated
+          function registerPushToken() {
+            if (typeof $ === 'undefined') {
+              setTimeout(registerPushToken, 500);
+              return;
+            }
+            
+            // Check if user is authenticated (look for common auth indicators)
+            const isAuthenticated = document.querySelector('meta[name="csrf-token"]') || 
+                                   document.querySelector('[data-user-id]') ||
+                                   window.location.pathname.includes('/dashboard') ||
+                                   window.location.pathname.includes('/domains');
+            
+            if (!isAuthenticated) {
+              console.log('User not authenticated yet, waiting...');
+              setTimeout(registerPushToken, 2000);
+              return;
+            }
+            
+            console.log('Registering push token with backend...');
+            
+            $.ajaxSetup({
+              headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') || ''
+              }
+            });
+            
+            $.ajax({
+              url: '/api/expo-push-token',
+              method: 'POST',
+              data: ${JSON.stringify(deviceInfo)},
+              success: function(response) {
+                console.log('Push token registered successfully:', response);
+                
+                // Show success notification in the web interface
+                if (typeof toastr !== 'undefined') {
+                  toastr.success('Push notificaties zijn ingeschakeld voor deze app!');
+                } else {
+                  // Fallback notification
+                  const notification = document.createElement('div');
+                  notification.style.cssText = 'position:fixed;top:20px;right:20px;background:#22c55e;color:white;padding:12px 16px;border-radius:8px;z-index:10000;font-family:sans-serif;';
+                  notification.textContent = '✅ Push notificaties ingeschakeld!';
+                  document.body.appendChild(notification);
+                  setTimeout(() => notification.remove(), 4000);
+                }
+              },
+              error: function(xhr, status, error) {
+                console.error('Failed to register push token:', xhr.responseJSON || error);
+                
+                // Show error notification
+                if (typeof toastr !== 'undefined') {
+                  toastr.error('Kon push notificaties niet inschakelen. Probeer opnieuw.');
+                } else {
+                  // Fallback notification
+                  const notification = document.createElement('div');
+                  notification.style.cssText = 'position:fixed;top:20px;right:20px;background:#ef4444;color:white;padding:12px 16px;border-radius:8px;z-index:10000;font-family:sans-serif;';
+                  notification.textContent = '❌ Push notificaties niet ingeschakeld';
+                  document.body.appendChild(notification);
+                  setTimeout(() => notification.remove(), 4000);
+                }
+              }
+            });
+          }
+          
+          // Start registration process
+          registerPushToken();
+        })();
+        true;
+      `;
+
+      webViewRef.current.injectJavaScript(script);
+      console.log('Push token sent to WebView for registration');
+
+    } catch (error) {
+      console.error('Error sending token to WebView:', error);
+    }
   };
 
   // WebView navigation state change handler
@@ -107,6 +231,15 @@ export default function PulseGuardWebView() {
   // WebView load end handler
   const handleLoadEnd = () => {
     setIsLoading(false);
+    
+    // Send push token to WebView once it's loaded
+    if (expoPushToken) {
+      console.log('WebView loaded, sending push token...');
+      // Delay slightly to ensure page is fully loaded
+      setTimeout(() => {
+        sendTokenToWebView(expoPushToken);
+      }, 1000);
+    }
   };
 
   // WebView error handler
