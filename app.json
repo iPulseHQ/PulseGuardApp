@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "PulseGuard",
-    "slug": "pulseguard-mobile",
+    "slug": "pulseguard",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/android-chrome-512x512.png",
@@ -12,7 +12,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.pulseguard.mobile",
-      "buildNumber": "2.0.0",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

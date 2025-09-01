@@ -1,8 +1,7 @@
-import { useAuth } from '@clerk/clerk-expo';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import NotificationToast from './NotificationToast';
@@ -11,7 +10,6 @@ const PULSEGUARD_URL = 'https://guard.ipulse.one';
 
 export default function PulseGuardWebView() {
   const webViewRef = useRef<WebView>(null);
-  const { getToken, user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
@@ -47,8 +45,11 @@ export default function PulseGuardWebView() {
 
   // Register device for push notifications
   const registerForPushNotificationsAsync = async () => {
-    if (!Device.isDevice) {
-      console.log('Push notifications only work on physical devices');
+    const isExpoGo = Constants.executionEnvironment === 'storeClient';
+
+    if (!Device.isDevice || isExpoGo) {
+      console.log('Push notifications only work on physical devices (not Expo Go)');
+      console.log('For push notifications, create a development build with: npx expo run:android or npx expo run:ios');
       return;
     }
 
@@ -66,8 +67,14 @@ export default function PulseGuardWebView() {
         return;
       }
 
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+      if (!projectId) {
+        console.error('Project ID not found in app configuration');
+        throw new Error('Project ID not found');
+      }
+
       const token = await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.expoConfig?.extra?.eas?.projectId || 'pulseguard-app',
+        projectId: projectId,
       });
 
       console.log('Expo push token:', token.data);
@@ -81,41 +88,10 @@ export default function PulseGuardWebView() {
     }
   };
 
-  // Register push token with Laravel backend
+  // Store push token for when user logs in via WebView
   const registerPushToken = async (token: string) => {
-    try {
-      const clerkToken = await getToken();
-
-      if (!clerkToken || !user) {
-        console.log('User not authenticated, skipping push token registration');
-        return;
-      }
-
-      const deviceName = `${Device.deviceName || 'Unknown Device'} (${Device.osName} ${Device.osVersion})`;
-
-      const response = await fetch(`${PULSEGUARD_URL}/api/expo-push-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${clerkToken}`,
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          token: token,
-          device_name: deviceName,
-          device_type: Device.osName?.toLowerCase() || 'unknown',
-          app_version: Constants.expoConfig?.version || '1.0.0',
-        }),
-      });
-
-      if (response.ok) {
-        console.log('Push token registered successfully');
-      } else {
-        console.error('Failed to register push token:', response.status);
-      }
-    } catch (error) {
-      console.error('Error registering push token:', error);
-    }
+    console.log('Expo push token available:', token);
+    // Token will be registered via Laravel webhook when user is authenticated in WebView
   };
 
   // WebView navigation state change handler
@@ -140,52 +116,12 @@ export default function PulseGuardWebView() {
     setIsLoading(false);
   };
 
-  // JavaScript to inject into WebView for Clerk authentication
+  // Minimal JavaScript for WebView communication
   const injectedJavaScript = `
     (function() {
-      // Wait for page to load
-      window.addEventListener('load', function() {
-        // Check if Clerk is loaded
-        if (window.Clerk) {
-          console.log('Clerk is available in WebView');
-
-          // Listen for authentication state changes
-          window.Clerk.addListener(function(event) {
-            if (event.type === 'auth') {
-              console.log('Clerk auth event:', event);
-
-              // Send auth state to React Native
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'clerk_auth',
-                isSignedIn: !!event.user,
-                user: event.user
-              }));
-            }
-          });
-        }
-
-        // Also check periodically for Clerk auth state
-        setInterval(function() {
-          if (window.Clerk && window.Clerk.user) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'clerk_auth_check',
-              isSignedIn: true,
-              user: window.Clerk.user
-            }));
-          }
-        }, 5000);
-      });
-
-      // Override console.log to send logs to React Native
-      const originalLog = console.log;
-      console.log = function(...args) {
-        originalLog.apply(console, args);
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'console_log',
-          message: args.join(' ')
-        }));
-      };
+      console.log('PulseGuard WebView loaded');
     })();
+    true;
   `;
 
   // Handle notification tap to navigate in WebView
@@ -233,16 +169,7 @@ export default function PulseGuardWebView() {
         injectedJavaScript={injectedJavaScript}
         userAgent="PulseGuardMobile/1.0"
         onMessage={(event) => {
-          try {
-            const data = JSON.parse(event.nativeEvent.data);
-            console.log('WebView message:', data);
-
-            if (data.type === 'clerk_auth' || data.type === 'clerk_auth_check') {
-              console.log('Clerk auth state:', data.isSignedIn);
-            }
-          } catch (error) {
-            console.log('WebView message (not JSON):', event.nativeEvent.data);
-          }
+          console.log('WebView message:', event.nativeEvent.data);
         }}
       />
 
