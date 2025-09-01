@@ -13,6 +13,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.pulseguard.mobile",
       "icon": "./assets/images/icon.png",
+      "statusBar": {
+        "backgroundColor": "#111827"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
@@ -32,6 +35,9 @@
       "package": "com.pulseguard.mobile",
       "versionCode": 6,
       "edgeToEdgeEnabled": true,
+      "androidStatusBar": {
+        "backgroundColor": "#111827"
+      },
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
@@ -52,10 +58,13 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
-          "imageWidth": 350,
-          "resizeMode": "contain",
-          "backgroundColor": "#111827"
+          "backgroundColor": "#111827",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "dark": {
+            "backgroundColor": "#111827",
+            "image": "./assets/images/splash-icon.png"
+          }
         }
       ],
       [
