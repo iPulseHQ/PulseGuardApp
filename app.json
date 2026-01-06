@@ -2,42 +2,34 @@
   "expo": {
     "name": "PulseGuard",
     "slug": "pulseguard",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pulseguard",
     "userInterfaceStyle": "automatic",
-    "description": "PulseGuard - Server monitoring and management platform",
-
+    "description": "PulseGuard - Server monitoring and uptime tracking",
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pulseguard.mobile",
+      "bundleIdentifier": "com.pulseguard.app",
       "icon": "./assets/images/icon.png",
-      "statusBar": {
-        "backgroundColor": "#111827"
+      "config": {
+        "usesNonExemptEncryption": false
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSAllowsArbitraryLoadsForMedia": true,
-          "NSAllowsArbitraryLoadsInWebContent": true
-        },
         "UIStatusBarStyle": "UIStatusBarStyleDarkContent",
         "UIViewControllerBasedStatusBarAppearance": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#111827"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0f172a"
       },
-      "package": "com.pulseguard.mobile",
-      "versionCode": 6,
+      "package": "com.pulseguard.app",
+      "versionCode": 10,
       "edgeToEdgeEnabled": true,
-      "androidStatusBar": {
-        "backgroundColor": "#111827"
-      },
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
@@ -46,7 +38,8 @@
         "VIBRATE",
         "POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM"
-      ]
+      ],
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "bundler": "metro",
@@ -55,14 +48,16 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
+      "expo-font",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#111827",
+          "backgroundColor": "#0f172a",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "dark": {
-            "backgroundColor": "#111827",
+            "backgroundColor": "#0f172a",
             "image": "./assets/images/splash-icon.png"
           }
         }
@@ -71,19 +66,19 @@
         "expo-notifications",
         {
           "icon": "./assets/images/android-chrome-192x192.png",
-          "color": "#1e40af",
+          "color": "#3b82f6",
           "defaultChannel": "default",
           "sounds": []
         }
-      ],
-      "expo-font",
-      "expo-secure-store"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "origin": false
+      },
       "eas": {
         "projectId": "59793018-86dd-49b7-8947-53daa966fea2"
       }
@@ -93,15 +88,13 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/e74f7f26-6984-4bd3-9170-a1bf28f4cfa3",
+      "url": "https://u.expo.dev/59793018-86dd-49b7-8947-53daa966fea2",
       "fallbackToCacheTimeout": 3000,
-      "checkAutomatically": "ON_ERROR_RECOVERY",
-      "codeSigningCertificate": "",
-      "codeSigningMetadata": {}
+      "checkAutomatically": "ON_ERROR_RECOVERY"
     },
     "notification": {
       "icon": "./assets/images/android-chrome-192x192.png",
-      "color": "#1e40af",
+      "color": "#3b82f6",
       "iosDisplayInForeground": true,
       "androidMode": "default",
       "androidCollapsedTitle": "PulseGuard Alert"
