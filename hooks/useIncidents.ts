@@ -1,3 +1,4 @@
+import { useOrganizationContext } from '@/context/OrganizationContext';
 import { API_ENDPOINTS, useApiClient } from '@/lib/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -29,9 +30,10 @@ type FilterType = 'all' | 'active' | 'resolved';
  */
 export function useIncidents(filter: FilterType = 'all') {
     const api = useApiClient();
+    const { activeOrganizationId } = useOrganizationContext();
 
     return useQuery<Incident[]>({
-        queryKey: ['incidents', filter],
+        queryKey: ['incidents', filter, activeOrganizationId],
         queryFn: async () => {
             const params: Record<string, string | boolean | number> = {};
 
@@ -39,6 +41,10 @@ export function useIncidents(filter: FilterType = 'all') {
                 params.status = 'open';
             } else if (filter === 'resolved') {
                 params.status = 'resolved';
+            }
+
+            if (activeOrganizationId) {
+                params.organization = activeOrganizationId;
             }
 
             const response = await api.get(API_ENDPOINTS.INCIDENTS, { params });
@@ -59,6 +65,49 @@ export function useIncidents(filter: FilterType = 'all') {
             }));
         },
         staleTime: 1000 * 30, // 30 seconds
+    });
+}
+
+/**
+ * Hook to fetch incidents for a specific domain
+ */
+export function useDomainIncidents(domainId: string) {
+    const api = useApiClient();
+    const { activeOrganizationId } = useOrganizationContext();
+
+    return useQuery<Incident[]>({
+        queryKey: ['incidents', 'domain', domainId, activeOrganizationId],
+        queryFn: async () => {
+            if (!domainId) return [];
+
+            const params: Record<string, string | boolean | number> = {
+                domainId,
+                limit: 10
+            };
+
+            if (activeOrganizationId) {
+                params.organization = activeOrganizationId;
+            }
+
+            const response = await api.get(API_ENDPOINTS.INCIDENTS, { params });
+            const data = response.data.incidents || response.data;
+
+            if (!Array.isArray(data)) return [];
+
+            return data.map((i: any) => ({
+                ...i,
+                uuid: i.uuid || i.id,
+                message: i.title || i.errorMessage || i.message || 'Systeem incident',
+                createdAt: i.createdAt || i.detectedAt,
+                acknowledgedAt: i.status === 'investigating' ? new Date().toISOString() : i.acknowledgedAt,
+                domain: {
+                    ...i.domain,
+                    name: i.domain?.domainName || i.domain?.name || i.domain?.url || 'Onbekend'
+                }
+            }));
+        },
+        enabled: !!domainId,
+        staleTime: 1000 * 30,
     });
 }
 

@@ -1,3 +1,4 @@
+import { useOrganizationContext } from '@/context/OrganizationContext';
 import { API_ENDPOINTS, useApiClient } from '@/lib/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Constants from 'expo-constants';
@@ -21,8 +22,8 @@ export function usePushNotifications() {
     const api = useApiClient();
     const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
     const [notification, setNotification] = useState<Notifications.Notification | null>(null);
-    const notificationListener = useRef<Notifications.Subscription>();
-    const responseListener = useRef<Notifications.Subscription>();
+    const notificationListener = useRef<Notifications.Subscription>(null);
+    const responseListener = useRef<Notifications.Subscription>(null);
 
     // Check if we're in Expo Go (notifications won't work)
     const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -129,12 +130,8 @@ export function usePushNotifications() {
         );
 
         return () => {
-            if (notificationListener.current) {
-                Notifications.removeNotificationSubscription(notificationListener.current);
-            }
-            if (responseListener.current) {
-                Notifications.removeNotificationSubscription(responseListener.current);
-            }
+            notificationListener.current?.remove();
+            responseListener.current?.remove();
         };
     }, [notificationsSupported]);
 
@@ -186,15 +183,54 @@ export function useUpdateNotificationSettings() {
  */
 export function useNotificationHistory(limit: number = 50) {
     const api = useApiClient();
+    const { activeOrganizationId } = useOrganizationContext();
 
     return useQuery({
-        queryKey: ['notifications', 'history', limit],
+        queryKey: ['notifications', 'history', limit, activeOrganizationId],
         queryFn: async () => {
-            const response = await api.get(API_ENDPOINTS.NOTIFICATIONS, {
-                params: { limit },
-            });
+            const params: any = { limit };
+            if (activeOrganizationId) {
+                params.organization = activeOrganizationId;
+            }
+            const response = await api.get(API_ENDPOINTS.NOTIFICATIONS, { params });
             return response.data;
         },
         staleTime: 1000 * 60, // 1 minute
+    });
+}
+
+/**
+ * Hook to mark a notification as read
+ */
+export function useMarkNotificationAsRead() {
+    const api = useApiClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const response = await api.put(API_ENDPOINTS.NOTIFICATION_READ(id));
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications', 'history'] });
+        },
+    });
+}
+
+/**
+ * Hook to mark all notifications as read
+ */
+export function useMarkAllNotificationsAsRead() {
+    const api = useApiClient();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            const response = await api.put(API_ENDPOINTS.NOTIFICATIONS_READ_ALL);
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications', 'history'] });
+        },
     });
 }

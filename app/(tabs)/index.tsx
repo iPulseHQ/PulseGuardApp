@@ -1,9 +1,12 @@
+import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
+import { useOrganizationContext } from '@/context/OrganizationContext';
 import { useDashboardStats } from '@/hooks/useDashboard';
+import { useOrganizations } from '@/hooks/useOrganizations';
 import { colors } from '@/lib/theme/colors';
 import { useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Pressable,
@@ -19,7 +22,13 @@ export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { user } = useUser();
+    const { activeOrganizationId } = useOrganizationContext();
+    const { data: organizations } = useOrganizations();
     const { data, isLoading, isRefetching, refetch, error } = useDashboardStats();
+
+    const [isOrgSwitcherVisible, setIsOrgSwitcherVisible] = useState(false);
+
+    const activeOrg = organizations?.find(o => o.id === activeOrganizationId);
 
     const stats = data?.stats;
     const recentIncidents = data?.recentIncidents || [];
@@ -45,11 +54,17 @@ export default function DashboardScreen() {
         onPress?: () => void;
     }) => (
         <Pressable
-            style={[styles.statCard, { borderLeftColor: color }]}
+            style={({ pressed }) => [
+                styles.statCard,
+                pressed && { opacity: 0.8 }
+            ]}
             onPress={onPress}
         >
-            <View style={[styles.statIconContainer, { backgroundColor: `${color}15` }]}>
-                <Ionicons name={icon} size={24} color={color} />
+            <View style={styles.statHeader}>
+                <View style={[styles.statIconContainer, { backgroundColor: `${color}15` }]}>
+                    <Ionicons name={icon} size={20} color={color} />
+                </View>
+                {/* Optional: Add an arrow or indicator if clickable? */}
             </View>
             <View style={styles.statContent}>
                 <Text style={styles.statValue}>{value}</Text>
@@ -88,10 +103,23 @@ export default function DashboardScreen() {
                 >
                     {/* Header */}
                     <View style={styles.header}>
-                        <View>
+                        <Pressable
+                            onPress={() => setIsOrgSwitcherVisible(true)}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            style={({ pressed }) => [
+                                styles.headerLeft,
+                                pressed && { opacity: 0.7 }
+                            ]}
+                        >
                             <Text style={styles.greeting}>{getGreeting()},</Text>
-                            <Text style={styles.userName}>{user?.firstName || 'Gebruiker'}</Text>
-                        </View>
+                            <View style={styles.userRow}>
+                                <Text style={styles.userName}>{user?.firstName || 'Gebruiker'}</Text>
+                                <View style={styles.orgBadge}>
+                                    <Text style={styles.orgBadgeText}>{activeOrg?.name || 'Persoonlijk'}</Text>
+                                    <Ionicons name="chevron-down" size={12} color={colors.muted} />
+                                </View>
+                            </View>
+                        </Pressable>
                     </View>
 
                     {/* Empty State */}
@@ -112,6 +140,10 @@ export default function DashboardScreen() {
                         </Pressable>
                     </View>
                 </ScrollView>
+                <OrganizationSwitcher
+                    visible={isOrgSwitcherVisible}
+                    onClose={() => setIsOrgSwitcherVisible(false)}
+                />
             </View>
         );
     }
@@ -135,10 +167,23 @@ export default function DashboardScreen() {
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <View>
+                    <Pressable
+                        onPress={() => setIsOrgSwitcherVisible(true)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={({ pressed }) => [
+                            styles.headerLeft,
+                            pressed && { opacity: 0.7 }
+                        ]}
+                    >
                         <Text style={styles.greeting}>{getGreeting()},</Text>
-                        <Text style={styles.userName}>{user?.firstName || 'Gebruiker'}</Text>
-                    </View>
+                        <View style={styles.userRow}>
+                            <Text style={styles.userName}>{user?.firstName || 'Gebruiker'}</Text>
+                            <View style={styles.orgBadge}>
+                                <Text style={styles.orgBadgeText}>{activeOrg?.name || 'Persoonlijk'}</Text>
+                                <Ionicons name="chevron-down" size={12} color={colors.muted} />
+                            </View>
+                        </View>
+                    </Pressable>
                     <View style={styles.headerRight}>
                         <Pressable
                             style={styles.notificationButton}
@@ -269,6 +314,10 @@ export default function DashboardScreen() {
                     )}
                 </View>
             </ScrollView>
+            <OrganizationSwitcher
+                visible={isOrgSwitcherVisible}
+                onClose={() => setIsOrgSwitcherVisible(false)}
+            />
         </View>
     );
 }
@@ -305,6 +354,30 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: '700',
         color: colors.foreground,
+    },
+    userRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    orgBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.card,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: colors.border,
+        gap: 4,
+    },
+    orgBadgeText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.primary,
+    },
+    headerLeft: {
+        flex: 1,
     },
     headerRight: {
         flexDirection: 'row',
@@ -345,19 +418,22 @@ const styles = StyleSheet.create({
         width: '48%',
         flexGrow: 1,
         backgroundColor: colors.card,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        borderLeftWidth: 4,
         borderWidth: 1,
         borderColor: colors.border,
+        // Remove borderLeftWidth
+    },
+    statHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 12,
     },
     statIconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
+        width: 36,
+        height: 36,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -368,11 +444,13 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: '700',
         color: colors.foreground,
+        letterSpacing: -0.5,
     },
     statTitle: {
         fontSize: 13,
         color: colors.muted,
-        marginTop: 2,
+        marginTop: 4,
+        fontWeight: '500',
     },
     section: {
         marginBottom: 24,

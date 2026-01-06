@@ -1,4 +1,7 @@
+import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
+import { useOrganizationContext } from '@/context/OrganizationContext';
 import { useDomains } from '@/hooks/useDomains';
+import { useOrganizations } from '@/hooks/useOrganizations';
 import { colors } from '@/lib/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -35,8 +38,13 @@ export default function DomainsScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState('');
+    const [isOrgSwitcherVisible, setIsOrgSwitcherVisible] = useState(false);
 
+    const { activeOrganizationId } = useOrganizationContext();
+    const { data: organizations } = useOrganizations();
     const { data: domains = [], isLoading, isRefetching, refetch } = useDomains();
+
+    const activeOrg = organizations?.find(o => o.id === activeOrganizationId);
 
     const filteredDomains = domains.filter((domain: Domain) => {
         const name = domain.domainName || domain.name || '';
@@ -141,7 +149,20 @@ export default function DomainsScreen() {
         <View style={styles.container}>
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-                <Text style={styles.title}>Domeinen</Text>
+                <View style={styles.headerLeft}>
+                    <Text style={styles.title}>Domeinen</Text>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.orgBadge,
+                            pressed && { opacity: 0.7 }
+                        ]}
+                        onPress={() => setIsOrgSwitcherVisible(true)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Text style={styles.orgBadgeText}>{activeOrg?.name || 'Persoonlijk'}</Text>
+                        <Ionicons name="chevron-down" size={12} color={colors.primary} />
+                    </Pressable>
+                </View>
                 <Pressable
                     style={styles.addButton}
                     onPress={() => router.push('/add-domain' as any)}
@@ -208,6 +229,10 @@ export default function DomainsScreen() {
                     </View>
                 }
             />
+            <OrganizationSwitcher
+                visible={isOrgSwitcherVisible}
+                onClose={() => setIsOrgSwitcherVisible(false)}
+            />
         </View>
     );
 }
@@ -232,6 +257,27 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingBottom: 16,
+    },
+    headerLeft: {
+        flex: 1,
+    },
+    orgBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.card,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: colors.border,
+        gap: 4,
+        alignSelf: 'flex-start',
+        marginTop: 4,
+    },
+    orgBadgeText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.primary,
     },
     title: {
         fontSize: 28,

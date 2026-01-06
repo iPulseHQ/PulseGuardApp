@@ -21,7 +21,8 @@
       "node": "20.18.0",
       "channel": "production",
       "env": {
-        "EXPO_SKIP_DOCTOR": "1"
+        "EXPO_SKIP_DOCTOR": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       },
       "cache": {
         "key": "production-cache-v2"
@@ -32,7 +33,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_SKIP_DOCTOR": "1"
+        "EXPO_SKIP_DOCTOR": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     }
   },

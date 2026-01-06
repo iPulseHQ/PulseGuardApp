@@ -1,4 +1,4 @@
-import { useNotificationHistory } from '@/hooks/useNotifications';
+import { useMarkAllNotificationsAsRead, useMarkNotificationAsRead, useNotificationHistory } from '@/hooks/useNotifications';
 import { colors } from '@/lib/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
@@ -8,10 +8,11 @@ import React, { useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
-    Pressable,
+    Platform,
     RefreshControl,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,10 +33,15 @@ export default function NotificationsScreen() {
     const [refreshing, setRefreshing] = useState(false);
 
     const { data: notificationsData, isLoading, refetch } = useNotificationHistory();
+    const { mutate: markAsRead } = useMarkNotificationAsRead();
+    const { mutate: markAllAsRead, isPending: isMarkingAll } = useMarkAllNotificationsAsRead();
 
     // Handle different backend response structures
-    const notifications: NotificationItem[] = notificationsData?.notifications ||
+    const notifications: NotificationItem[] = notificationsData?.data ||
+        notificationsData?.notifications ||
         (Array.isArray(notificationsData) ? notificationsData : []);
+
+    const unreadCount = notifications.filter(n => !n.isRead).length;
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -61,45 +67,68 @@ export default function NotificationsScreen() {
         }
     };
 
+    const handleNotificationPress = (item: NotificationItem) => {
+        if (!item.isRead) {
+            markAsRead(item.id);
+        }
+
+        // If it's an incident notification, navigate to incident
+        if (item.metadata?.incidentId || item.metadata?.uuid) {
+            router.push(`/incident/${item.metadata.incidentId || item.metadata.uuid}` as any);
+        } else if (item.metadata?.domainId) {
+            router.push(`/domain/${item.metadata.domainId}` as any);
+        }
+    };
+
     const renderItem = ({ item }: { item: NotificationItem }) => (
-        <Pressable
+        <TouchableOpacity
             style={[styles.notificationCard, !item.isRead && styles.unreadCard]}
-            onPress={() => {
-                // If it's an incident notification, navigate to incident
-                if (item.metadata?.incidentId || item.metadata?.uuid) {
-                    router.push(`/incident/${item.metadata.incidentId || item.metadata.uuid}` as any);
-                } else if (item.metadata?.domainId) {
-                    router.push(`/domain/${item.metadata.domainId}` as any);
-                }
-            }}
+            onPress={() => handleNotificationPress(item)}
+            activeOpacity={0.7}
         >
-            <View style={[styles.iconContainer, { backgroundColor: `${getColor(item.type)}15` }]}>
-                <Ionicons name={getIcon(item.type) as any} size={24} color={getColor(item.type)} />
-            </View>
-            <View style={styles.content}>
-                <View style={styles.headerRow}>
-                    <Text style={styles.title} numberOfLines={1}>
+            <View style={styles.cardHeader}>
+                <View style={[styles.iconContainer, { backgroundColor: `${getColor(item.type)}10` }]}>
+                    <Ionicons name={getIcon(item.type) as any} size={20} color={getColor(item.type)} />
+                </View>
+                <View style={styles.headerTextContainer}>
+                    <Text style={[styles.title, !item.isRead && styles.unreadTitle]} numberOfLines={1}>
                         {item.title || (item.type === 'error' ? 'Systeem Fout' : 'Melding')}
                     </Text>
                     <Text style={styles.time}>
                         {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: nl })}
                     </Text>
                 </View>
-                <Text style={styles.message} numberOfLines={2}>{item.message}</Text>
+                {!item.isRead && (
+                    <View style={styles.unreadIndicator} />
+                )}
             </View>
-            {!item.isRead && <View style={styles.unreadDot} />}
-        </Pressable>
+            <Text style={[styles.message, !item.isRead && styles.unreadMessage]} numberOfLines={3}>
+                {item.message}
+            </Text>
+        </TouchableOpacity>
     );
 
     return (
         <View style={styles.container}>
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-                <Pressable onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="chevron-back" size={24} color={colors.foreground} />
-                </Pressable>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+                </TouchableOpacity>
                 <Text style={styles.headerTitle}>Meldingen</Text>
-                <View style={[styles.backButton, { backgroundColor: 'transparent' }]}>
-                    {notifications.length > 0 && <Ionicons name="checkmark-done" size={24} color={colors.primary} />}
+                <View style={styles.headerRight}>
+                    {unreadCount > 0 && (
+                        <TouchableOpacity
+                            onPress={() => markAllAsRead()}
+                            disabled={isMarkingAll}
+                            style={styles.actionButton}
+                        >
+                            {isMarkingAll ? (
+                                <ActivityIndicator size="small" color={colors.primary} />
+                            ) : (
+                                <Ionicons name="checkmark-done-outline" size={24} color={colors.primary} />
+                            )}
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
 
@@ -119,7 +148,7 @@ export default function NotificationsScreen() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <View style={styles.emptyIconCircle}>
-                                <Ionicons name="notifications-off-outline" size={48} color={colors.muted} />
+                                <Ionicons name="notifications-off-outline" size={32} color={colors.muted} />
                             </View>
                             <Text style={styles.emptyTitle}>Geen meldingen</Text>
                             <Text style={styles.emptySubtitle}>Je bent helemaal bij!</Text>
@@ -134,7 +163,7 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: colors.background, // Should be white or very light gray
     },
     header: {
         flexDirection: 'row',
@@ -142,19 +171,27 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingBottom: 16,
+        backgroundColor: colors.background,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 40,
+        height: 40,
         justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: colors.card,
+        alignItems: 'flex-start',
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '600',
         color: colors.foreground,
+    },
+    headerRight: {
+        width: 40,
+        alignItems: 'flex-end',
+    },
+    actionButton: {
+        padding: 4,
     },
     center: {
         flex: 1,
@@ -165,83 +202,102 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     notificationCard: {
-        flexDirection: 'row',
         backgroundColor: colors.card,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 16,
         marginBottom: 12,
         borderWidth: 1,
         borderColor: colors.border,
-        alignItems: 'center',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+            },
+            android: {
+                elevation: 1,
+            },
+        }),
     },
     unreadCard: {
-        borderColor: `${colors.primary}40`,
-        backgroundColor: `${colors.primary}05`,
+        borderColor: colors.border,
+        backgroundColor: colors.card, // Keep white background but maybe add a blue accent bar?
+        // Or shadcn style: simple dot.
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
     },
     iconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
+        width: 32,
+        height: 32,
+        borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
+        marginRight: 12,
     },
-    content: {
-        flex: 1,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    title: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: colors.foreground,
+    headerTextContainer: {
         flex: 1,
         marginRight: 8,
+    },
+    title: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: colors.muted,
+    },
+    unreadTitle: {
+        color: colors.foreground,
+        fontWeight: '600',
     },
     time: {
         fontSize: 12,
         color: colors.muted,
+        marginTop: 2,
+    },
+    unreadIndicator: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: colors.primary,
     },
     message: {
         fontSize: 14,
         color: colors.muted,
-        lineHeight: 18,
+        lineHeight: 20,
     },
-    unreadDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: colors.primary,
-        marginLeft: 12,
+    unreadMessage: {
+        color: colors.foreground,
     },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 100,
+        padding: 24,
     },
     emptyIconCircle: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: colors.card,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 16,
         borderWidth: 1,
         borderColor: colors.border,
+        borderStyle: 'dashed',
     },
     emptyTitle: {
-        fontSize: 20,
-        fontWeight: '700',
+        fontSize: 18,
+        fontWeight: '600',
         color: colors.foreground,
         marginBottom: 8,
     },
     emptySubtitle: {
-        fontSize: 16,
+        fontSize: 14,
         color: colors.muted,
+        textAlign: 'center',
+        maxWidth: 250,
     },
 });

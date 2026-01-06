@@ -94,9 +94,35 @@ export default function SignInScreen() {
                     setError('Andere verificatie methode nodig. Log in via de website.');
                 }
             } else if (result.status === 'needs_second_factor') {
-                // 2FA / TOTP nodig
-                setPendingVerification(true);
-                setVerificationFactor({ strategy: 'totp' });
+                // Device verification (Client Trust) or 2FA needed
+                console.log('Needs second factor, factors:', result.supportedSecondFactors);
+
+                // Check for Client Trust (email_code)
+                const emailCodeFactor = result.supportedSecondFactors?.find(
+                    (f: any) => f.strategy === 'email_code'
+                );
+
+                if (emailCodeFactor) {
+                    // Client Trust: Email verification required
+                    setVerificationFactor(emailCodeFactor);
+                    setPendingVerification(true);
+                    setError(null);
+
+                    // Send the email code
+                    await signIn.prepareSecondFactor({ strategy: 'email_code' });
+                } else {
+                    // Fallback to TOTP if available
+                    const totpFactor = result.supportedSecondFactors?.find(
+                        (f: any) => f.strategy === 'totp'
+                    );
+
+                    if (totpFactor) {
+                        setPendingVerification(true);
+                        setVerificationFactor({ strategy: 'totp' });
+                    } else {
+                        setError('Ondersteunde verificatie methode niet gevonden. Log in via de website.');
+                    }
+                }
             } else {
                 setError(`Status: ${result.status}. Log in via de website.`);
             }
@@ -118,12 +144,28 @@ export default function SignInScreen() {
 
         try {
             let result;
-            if (verificationFactor?.strategy === 'totp') {
+            const strategy = verificationFactor?.strategy;
+
+            if (strategy === 'totp') {
                 result = await signIn.attemptSecondFactor({
                     strategy: 'totp',
                     code,
                 });
+            } else if (strategy === 'email_code') {
+                // Check if it's first or second factor
+                if (signIn.status === 'needs_first_factor') {
+                    result = await signIn.attemptFirstFactor({
+                        strategy: 'email_code',
+                        code,
+                    });
+                } else {
+                    result = await signIn.attemptSecondFactor({
+                        strategy: 'email_code',
+                        code,
+                    });
+                }
             } else {
+                // Fallback for unexpected state
                 result = await signIn.attemptFirstFactor({
                     strategy: 'email_code',
                     code,

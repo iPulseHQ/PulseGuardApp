@@ -1,3 +1,4 @@
+import { useOrganizationContext } from '@/context/OrganizationContext';
 import { API_ENDPOINTS, useApiClient } from '@/lib/api/client';
 import { useQuery } from '@tanstack/react-query';
 
@@ -35,14 +36,17 @@ interface DashboardData {
  */
 export function useDashboardStats() {
     const api = useApiClient();
+    const { activeOrganizationId } = useOrganizationContext();
 
     return useQuery<DashboardData>({
-        queryKey: ['dashboard', 'stats'],
+        queryKey: ['dashboard', 'stats', activeOrganizationId],
         queryFn: async () => {
+            const params = activeOrganizationId ? { organization: activeOrganizationId } : {};
+
             // Fetch stats and incidents in parallel, but handle failures gracefully
             const results = await Promise.allSettled([
-                api.get(API_ENDPOINTS.DASHBOARD_STATS),
-                api.get(API_ENDPOINTS.INCIDENTS, { params: { limit: 5 } })
+                api.get(API_ENDPOINTS.DASHBOARD_STATS, { params }),
+                api.get(API_ENDPOINTS.INCIDENTS, { params: { ...params, limit: 5 } })
             ]);
 
             const statsRes = results[0].status === 'fulfilled' ? results[0].value : null;

@@ -1,3 +1,4 @@
+import { useOrganizationContext } from '@/context/OrganizationContext';
 import { API_ENDPOINTS, useApiClient } from '@/lib/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -10,12 +11,15 @@ interface Domain {
     status: 'up' | 'down' | 'pending' | 'paused' | 'unknown';
     monitor?: {
         uptimeStatus: 'up' | 'down' | 'pending' | 'paused' | 'unknown';
+        certificateIssuer?: string;
+        certificateExpirationDate?: string;
     };
     lastCheckedAt: string;
     responseTime: number | null;
     uptime: number;
     sslExpiresAt?: string;
     checkInterval: number;
+    enabled: boolean;
     createdAt: string;
 }
 
@@ -27,6 +31,38 @@ interface DomainDetails extends Domain {
         validFrom: string;
         validTo: string;
         daysUntilExpiry: number;
+    };
+}
+
+export interface DomainSummary {
+    domain: {
+        id: string;
+        uuid: string;
+        url: string;
+        domainName?: string;
+    };
+    monitor: any;
+    stats: {
+        totalChecks: number;
+        upChecks: number;
+        downChecks: number;
+        uptimePercentage: number | null;
+        avgResponseTime: number | null;
+        p95ResponseTime: number | null;
+        latestStatusCode: number | null;
+        totalUptimeMinutes: number;
+        totalDowntimeMinutes: number;
+    };
+    dns: {
+        count: number;
+        records: any[];
+    };
+    security: any;
+    performance: {
+        filmstrip: any;
+        filmstripGeneratedAt: string | null;
+        resourceTimings: any;
+        resourceTimingsGeneratedAt: string | null;
     };
 }
 
@@ -65,11 +101,13 @@ interface UpdateDomainInput {
  */
 export function useDomains() {
     const api = useApiClient();
+    const { activeOrganizationId } = useOrganizationContext();
 
     return useQuery<Domain[]>({
-        queryKey: ['domains'],
+        queryKey: ['domains', activeOrganizationId],
         queryFn: async () => {
-            const response = await api.get(API_ENDPOINTS.DOMAINS);
+            const params = activeOrganizationId ? { organization: activeOrganizationId } : {};
+            const response = await api.get(API_ENDPOINTS.DOMAINS, { params });
             // Backend returns paginated object { domains: [], total: ... }
             return response.data.domains || response.data;
         },
@@ -185,5 +223,21 @@ export function useToggleDomainPause() {
             queryClient.invalidateQueries({ queryKey: ['domains'] });
             queryClient.invalidateQueries({ queryKey: ['domains', uuid] });
         },
+    });
+}
+
+/**
+ * Hook to get domain summary
+ */
+export function useDomainSummary(uuid: string) {
+    const api = useApiClient();
+
+    return useQuery({
+        queryKey: ['domains', uuid, 'summary'],
+        queryFn: async () => {
+            const response = await api.get<DomainSummary>(API_ENDPOINTS.DOMAIN_SUMMARY(uuid));
+            return response.data;
+        },
+        enabled: !!uuid,
     });
 }

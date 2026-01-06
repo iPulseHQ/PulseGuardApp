@@ -1,3 +1,4 @@
+import { OrganizationProvider } from '@/context/OrganizationContext';
 import { tokenCache } from '@/lib/auth/token-cache';
 import { ClerkLoaded, ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -104,12 +105,14 @@ export default function RootLayout() {
     >
       <ClerkLoaded>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <SafeAreaProvider>
-              <InitialLayout />
-              <StatusBar style="light" />
-            </SafeAreaProvider>
-          </GestureHandlerRootView>
+          <OrganizationProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <SafeAreaProvider>
+                <InitialLayout />
+                <StatusBar style="light" />
+              </SafeAreaProvider>
+            </GestureHandlerRootView>
+          </OrganizationProvider>
         </QueryClientProvider>
       </ClerkLoaded>
     </ClerkProvider>

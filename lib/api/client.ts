@@ -104,6 +104,7 @@ export const API_ENDPOINTS = {
     DOMAINS: '/api/domains',
     DOMAIN: (uuid: string) => `/api/domains/${uuid}`,
     DOMAIN_CHECKS: (uuid: string) => `/api/domains/${uuid}/checks`,
+    DOMAIN_SUMMARY: (uuid: string) => `/api/domains/${uuid}/summary`,
 
     // Incidents
     INCIDENTS: '/incidents',
@@ -111,8 +112,16 @@ export const API_ENDPOINTS = {
     INCIDENT_ACKNOWLEDGE: (uuid: string) => `/incidents/${uuid}/acknowledge`,
     INCIDENT_RESOLVE: (uuid: string) => `/incidents/${uuid}/resolve`,
 
+    // Organizations
+    ORGANIZATIONS: '/organizations',
+    ORGANIZATION: (id: string) => `/organizations/${id}`,
+    ORGANIZATION_SYNC: '/organizations/sync',
+    ORGANIZATION_INVITE: (id: string) => `/organizations/${id}/invite`,
+
     // Notifications
     NOTIFICATIONS: '/notifications/in-app',
+    NOTIFICATION_READ: (id: string) => `/notifications/in-app/${id}/read`,
+    NOTIFICATIONS_READ_ALL: '/notifications/in-app/read-all',
     NOTIFICATION_SETTINGS: '/notifications/preferences',
     EXPO_PUSH_TOKEN: '/expo-push-token',
 

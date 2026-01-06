@@ -1,4 +1,7 @@
+import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
+import { useOrganizationContext } from '@/context/OrganizationContext';
 import { useAcknowledgeIncident, useIncidents, useResolveIncident } from '@/hooks/useIncidents';
+import { useOrganizations } from '@/hooks/useOrganizations';
 import { colors } from '@/lib/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
@@ -43,8 +46,13 @@ export default function IncidentsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [filter, setFilter] = useState<FilterType>('active');
+  const [isOrgSwitcherVisible, setIsOrgSwitcherVisible] = useState(false);
 
+  const { activeOrganizationId } = useOrganizationContext();
+  const { data: organizations } = useOrganizations();
   const { data: incidents = [], isLoading, isRefetching, refetch } = useIncidents(filter);
+
+  const activeOrg = organizations?.find(o => o.id === activeOrganizationId);
   const { mutate: acknowledgeIncident } = useAcknowledgeIncident();
   const { mutate: resolveIncident } = useResolveIncident();
 
@@ -167,7 +175,20 @@ export default function IncidentsScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.title}>Incidenten</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Incidenten</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.orgBadge,
+              pressed && { opacity: 0.7 }
+            ]}
+            onPress={() => setIsOrgSwitcherVisible(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.orgBadgeText}>{activeOrg?.name || 'Persoonlijk'}</Text>
+            <Ionicons name="chevron-down" size={12} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
 
       {/* Filter Tabs */}
@@ -213,6 +234,10 @@ export default function IncidentsScreen() {
           </View>
         }
       />
+      <OrganizationSwitcher
+        visible={isOrgSwitcherVisible}
+        onClose={() => setIsOrgSwitcherVisible(false)}
+      />
     </View>
   );
 }
@@ -234,6 +259,27 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingBottom: 16,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  orgBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  orgBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
   },
   title: {
     fontSize: 28,
