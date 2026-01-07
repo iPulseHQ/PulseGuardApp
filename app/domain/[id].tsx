@@ -1,5 +1,6 @@
 import { useDeleteDomain, useDomain, useDomainSummary, useToggleDomainPause } from '@/hooks/useDomains';
 import { useDomainIncidents } from '@/hooks/useIncidents';
+import { getUptimeStatusColor, useDomainUptimeHistory } from '@/hooks/useUptimeHistory';
 import { colors } from '@/lib/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -19,7 +20,7 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Path, Svg } from 'react-native-svg';
+import { Line, Path, Rect, Svg } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -32,12 +33,13 @@ export default function DomainDetailScreen() {
     const { data: domain, isLoading, error, refetch: refetchDomain } = useDomain(id as string);
     const { data: summary, isLoading: isLoadingSummary, refetch: refetchSummary } = useDomainSummary(id as string);
     const { data: incidents, isLoading: isLoadingIncidents, refetch: refetchIncidents } = useDomainIncidents(id as string);
+    const { data: uptimeHistory, refetch: refetchHistory } = useDomainUptimeHistory(id as string, 30);
     const { mutate: deleteDomain, isPending: isDeleting } = useDeleteDomain();
     const { mutate: togglePause, isPending: isToggling } = useToggleDomainPause();
 
     const onRefresh = async () => {
         setRefreshing(true);
-        await Promise.all([refetchDomain(), refetchSummary(), refetchIncidents()]);
+        await Promise.all([refetchDomain(), refetchSummary(), refetchIncidents(), refetchHistory()]);
         setRefreshing(false);
     };
 
@@ -103,34 +105,45 @@ export default function DomainDetailScreen() {
     const maxResponseTime = responseTimes.length > 0 ? Math.max(...responseTimes) : 0;
 
     const renderSparkline = () => {
-        if (checks.length < 2) return null;
+        if (!checks || checks.length < 2) return null;
 
-        const data = [...checks].reverse().map(c => c.responseTime);
-        const max = Math.max(...data, 100);
-        const min = Math.min(...data, 0);
-        const range = max - min;
+        try {
+            const data = [...checks].reverse().map(c => c.responseTime).filter(t => typeof t === 'number' && !isNaN(t));
+            if (data.length < 2) return null;
 
-        const chartWidth = width - 64;
-        const chartHeight = 60;
+            const max = Math.max(...data, 100);
+            const min = Math.min(...data, 0);
+            const range = max - min || 1; // Prevent division by zero
 
-        const points = data.map((d, i) => {
-            const x = (i / (data.length - 1)) * chartWidth;
-            const y = chartHeight - ((d - min) / range) * chartHeight;
-            return `${x},${y}`;
-        }).join(' ');
+            const chartWidth = width - 64;
+            const chartHeight = 60;
 
-        return (
-            <View style={styles.sparklineContainer}>
-                <Svg width={chartWidth} height={chartHeight}>
-                    <Path
-                        d={`M ${points}`}
-                        fill="none"
-                        stroke={colors.primary}
-                        strokeWidth="2"
-                    />
-                </Svg>
-            </View>
-        );
+            const points = data.map((d, i) => {
+                const x = (i / (data.length - 1)) * chartWidth;
+                const y = chartHeight - ((d - min) / range) * chartHeight;
+                // Ensure values are valid numbers
+                if (isNaN(x) || isNaN(y) || !isFinite(x) || !isFinite(y)) {
+                    return '0,0';
+                }
+                return `${x},${y}`;
+            }).join(' ');
+
+            return (
+                <View style={styles.sparklineContainer}>
+                    <Svg width={chartWidth} height={chartHeight}>
+                        <Path
+                            d={`M ${points}`}
+                            fill="none"
+                            stroke={colors.primary}
+                            strokeWidth="2"
+                        />
+                    </Svg>
+                </View>
+            );
+        } catch (error) {
+            console.error('[Domain] Failed to render sparkline:', error);
+            return null;
+        }
     };
 
     const getStatusText = (s: string) => {
@@ -351,7 +364,92 @@ export default function DomainDetailScreen() {
                     </View>
                 )}
 
-                {/* Recent Checks */}
+                {/* 30-Day Uptime History Chart */}
+                {uptimeHistory && uptimeHistory?.daily && uptimeHistory.daily.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Uptime Geschiedenis (30 dagen)</Text>
+                        <View style={styles.chartCard}>
+                            {/* Summary Stats */}
+                            <View style={styles.uptimeHistorySummary}>
+                                <View style={styles.uptimeHistoryItem}>
+                                    <Text style={[styles.uptimeHistoryValue, { color: getUptimeStatusColor(uptimeHistory.summary.overallUptime) }]}>
+                                        {uptimeHistory.summary.overallUptime.toFixed(2)}%
+                                    </Text>
+                                    <Text style={styles.uptimeHistoryLabel}>Uptime</Text>
+                                </View>
+                                <View style={styles.uptimeHistoryItem}>
+                                    <Text style={styles.uptimeHistoryValue}>
+                                        {uptimeHistory.summary.avgResponseTime ? `${Math.round(uptimeHistory.summary.avgResponseTime)}ms` : '-'}
+                                    </Text>
+                                    <Text style={styles.uptimeHistoryLabel}>Gem. Respons</Text>
+                                </View>
+                                <View style={styles.uptimeHistoryItem}>
+                                    <Text style={styles.uptimeHistoryValue}>{uptimeHistory.summary.totalChecks}</Text>
+                                    <Text style={styles.uptimeHistoryLabel}>Checks</Text>
+                                </View>
+                            </View>
+
+                            {/* Bar Chart */}
+                            <View style={styles.barChartContainer}>
+                                <Svg width={width - 72} height={80}>
+                                    {uptimeHistory.daily.slice(-30).map((day, index) => {
+                                        try {
+                                            const barWidth = (width - 72) / 30 - 2;
+                                            const uptime = typeof day.uptime === 'number' ? day.uptime : 100;
+                                            const barHeight = Math.max((uptime / 100) * 60, 1);
+                                            const x = index * ((width - 72) / 30);
+                                            const y = Math.max(60 - barHeight, 0);
+
+                                            // Validate all values are finite numbers
+                                            if (!isFinite(x) || !isFinite(y) || !isFinite(barWidth) || !isFinite(barHeight)) {
+                                                return null;
+                                            }
+
+                                            return (
+                                                <Rect
+                                                    key={day.date}
+                                                    x={x + 1}
+                                                    y={y}
+                                                    width={barWidth}
+                                                    height={barHeight}
+                                                    fill={getUptimeStatusColor(uptime)}
+                                                    rx={2}
+                                                />
+                                            );
+                                        } catch (error) {
+                                            console.error('[Domain] Failed to render bar:', error);
+                                            return null;
+                                        }
+                                    })}
+                                    {/* 99% line */}
+                                    <Line
+                                        x1={0}
+                                        y1={60 - (99 / 100) * 60}
+                                        x2={width - 72}
+                                        y2={60 - (99 / 100) * 60}
+                                        stroke={colors.muted}
+                                        strokeWidth={1}
+                                        strokeDasharray="4,4"
+                                    />
+                                </Svg>
+                                <View style={styles.barChartLabels}>
+                                    <Text style={styles.barChartLabel}>30 dagen geleden</Text>
+                                    <Text style={styles.barChartLabel}>Vandaag</Text>
+                                </View>
+                            </View>
+
+                            {/* Downtime info if any */}
+                            {uptimeHistory.summary.downChecks > 0 && (
+                                <View style={styles.downtimeInfo}>
+                                    <Ionicons name="warning" size={16} color={colors.warning} />
+                                    <Text style={styles.downtimeText}>
+                                        {uptimeHistory.summary.downChecks} mislukte checks in de laatste 30 dagen
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                )}
                 {domain.checks && domain.checks.length > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Check Historie (Laatste 10)</Text>
@@ -714,5 +812,48 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         color: colors.foreground,
+    },
+    uptimeHistorySummary: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginBottom: 20,
+    },
+    uptimeHistoryItem: {
+        alignItems: 'center',
+    },
+    uptimeHistoryValue: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: colors.foreground,
+    },
+    uptimeHistoryLabel: {
+        fontSize: 12,
+        color: colors.muted,
+        marginTop: 4,
+    },
+    barChartContainer: {
+        marginTop: 8,
+    },
+    barChartLabels: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 8,
+    },
+    barChartLabel: {
+        fontSize: 10,
+        color: colors.muted,
+    },
+    downtimeInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 16,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        gap: 8,
+    },
+    downtimeText: {
+        fontSize: 13,
+        color: colors.warning,
     },
 });

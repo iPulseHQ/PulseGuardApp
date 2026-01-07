@@ -11,7 +11,8 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pulseguard.app",
+      "bundleIdentifier": "com.pulseguard.mobile",
+      "buildNumber": "2.0.21",
       "icon": "./assets/images/icon.png",
       "config": {
         "usesNonExemptEncryption": false
@@ -69,6 +70,12 @@
           "color": "#3b82f6",
           "defaultChannel": "default",
           "sounds": []
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Sta $(PRODUCT_NAME) toe om Face ID te gebruiken voor snelle en veilige app-toegang."
         }
       ]
     ],

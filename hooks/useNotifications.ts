@@ -41,20 +41,25 @@ export function usePushNotifications() {
         try {
             // Set up notification channels on Android
             if (Platform.OS === 'android') {
-                await Notifications.setNotificationChannelAsync('default', {
-                    name: 'PulseGuard Alerts',
-                    importance: Notifications.AndroidImportance.MAX,
-                    vibrationPattern: [0, 250, 250, 250],
-                    lightColor: '#3b82f6',
-                    sound: 'default',
-                });
+                try {
+                    await Notifications.setNotificationChannelAsync('default', {
+                        name: 'PulseGuard Alerts',
+                        importance: Notifications.AndroidImportance.MAX,
+                        vibrationPattern: [0, 250, 250, 250],
+                        lightColor: '#3b82f6',
+                        sound: 'default',
+                    });
 
-                await Notifications.setNotificationChannelAsync('critical', {
-                    name: 'Critical Alerts',
-                    importance: Notifications.AndroidImportance.MAX,
-                    vibrationPattern: [0, 250, 250, 250, 250, 250],
-                    lightColor: '#ef4444',
-                });
+                    await Notifications.setNotificationChannelAsync('critical', {
+                        name: 'Critical Alerts',
+                        importance: Notifications.AndroidImportance.MAX,
+                        vibrationPattern: [0, 250, 250, 250, 250, 250],
+                        lightColor: '#ef4444',
+                    });
+                } catch (channelError) {
+                    console.warn('[Notifications] Failed to setup channels:', channelError);
+                    // Continue anyway, not critical
+                }
             }
 
             // Request permissions
@@ -74,7 +79,8 @@ export function usePushNotifications() {
             // Get the push token
             const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
             if (!projectId) {
-                throw new Error('Project ID not found');
+                console.warn('[Notifications] Project ID not found');
+                return null;
             }
 
             const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;

@@ -229,11 +229,28 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
+        // Modern shadow styling compatible with web
+        ...Platform.select({
+            ios: {
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+            },
+            android: {
+                elevation: 4,
+            },
+            web: {
+                boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.3)',
+            },
+            default: {
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 4,
+            },
+        }),
     },
     saveButtonDisabled: {
         opacity: 0.6,
